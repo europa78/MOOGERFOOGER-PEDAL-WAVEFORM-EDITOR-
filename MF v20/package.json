@@ -9,7 +9,8 @@
     "pack": "electron-builder --dir",
     "dist": "electron-builder",
     "dist:win": "electron-builder --win nsis",
-    "dist:portable": "electron-builder --win portable"
+    "dist:portable": "electron-builder --win portable",
+    "verify:release": "node scripts/verify-release.js"
   },
   "keywords": [
     "moog",
@@ -63,6 +64,11 @@
         "AppImage",
         "deb"
       ]
+    },
+    "compression": "normal",
+    "npmRebuild": false,
+    "extraMetadata": {
+      "main": "main.js"
     }
   }
 }
