@@ -343,6 +343,17 @@
       font-size: 9px; font-weight: 700; color: var(--text-label);
       letter-spacing: 2px; text-transform: uppercase; text-align: center;
     }
+    .knob-cc-label {
+      font-size: 7px;
+      color: var(--text-dim);
+      letter-spacing: 0.6px;
+      text-transform: uppercase;
+      min-height: 9px;
+      text-align: center;
+    }
+    .knob-group.midi-learning .knob-cc-label {
+      color: var(--led-amber);
+    }
     .knob-wrapper {
       position: relative; width: 78px; height: 78px;
       cursor: grab;
@@ -2336,6 +2347,8 @@ class MIDIEngine {
         this.paramToCC[def.param] = parseInt(cc);
       }
     }
+
+    this.learnableParams = new Set(['time', 'feedback', 'drive', 'output', 'mix', 'lfoRate', 'lfoAmount']);
   }
 
   // ── Initialize Web MIDI API ──
@@ -2516,9 +2529,11 @@ class MIDIEngine {
       this._updateCCGridDisplay();
       this._log(`Learned: ${this.learnTarget} → CC${cc}`);
       this.learning = false;
+      const learnedParam = this.learnTarget;
       this.learnTarget = null;
       document.getElementById('midiLearnBtn').classList.remove('active');
       document.querySelectorAll('.midi-cc-item.learning').forEach(el => el.classList.remove('learning'));
+      this.uiCallback?.('ccLearned', { param: learnedParam, cc });
       return;
     }
 
@@ -2840,6 +2855,11 @@ class MIDIEngine {
 
   // ── CC Learn Mode ──
   startLearn(paramName) {
+    if (!this.learnableParams.has(paramName)) {
+      this._log(`Cannot learn CC for unsupported param: ${paramName}`, 'warn');
+      return false;
+    }
+
     this.learning = true;
     this.learnTarget = paramName;
     this._log(`Learning CC for: ${paramName}...`);
@@ -2848,6 +2868,7 @@ class MIDIEngine {
     document.querySelectorAll('.midi-cc-item').forEach(el => {
       el.classList.toggle('learning', el.dataset.ccParam === paramName);
     });
+    return true;
   }
 
   cancelLearn() {
@@ -2855,6 +2876,18 @@ class MIDIEngine {
     this.learnTarget = null;
     document.querySelectorAll('.midi-cc-item.learning').forEach(el => el.classList.remove('learning'));
     document.getElementById('midiLearnBtn').classList.remove('active');
+  }
+
+  clearMapping(paramName) {
+    if (!this.learnableParams.has(paramName)) return false;
+    const oldCC = this.paramToCC[paramName];
+    if (typeof oldCC === 'number' && this.ccMap[oldCC]?.param === paramName) {
+      delete this.ccMap[oldCC];
+    }
+    delete this.paramToCC[paramName];
+    this._updateCCGridDisplay();
+    this._log(`Cleared mapping for: ${paramName}`);
+    return true;
   }
 
 
@@ -3617,6 +3650,7 @@ class PedalUI {
     this.slotBState = null;
     this.activeCompareSlot = 'A';
     this.activePianoNote = null;
+    this._knobMidiLearnMode = false;
 
     // Bind sample loader early so first click works (no init dependency)
     this._bindSampleLoader();
@@ -3647,6 +3681,7 @@ class PedalUI {
 
     this.waveformEditor.onRegionChange = () => this._scheduleAutoSave();
     await this._restoreLastSession();
+    this._renderKnobAssignmentLabels();
     this._refreshPresetList();
     this._captureCompareSlots();
 
@@ -3691,9 +3726,32 @@ class PedalUI {
     group.querySelector('.knob').style.transform = `rotate(${rot}deg)`;
   }
 
+
+  _renderKnobAssignmentLabels() {
+    if (!this.midi) return;
+    document.querySelectorAll('.knob-group[data-param]').forEach((group) => {
+      const param = group.dataset.param;
+      let label = group.querySelector('.knob-cc-label');
+      if (!label) {
+        label = document.createElement('div');
+        label.className = 'knob-cc-label';
+        group.appendChild(label);
+      }
+      const cc = this.midi.paramToCC?.[param];
+      label.textContent = Number.isInteger(cc) ? `CC${cc}` : 'CC —';
+    });
+  }
+
+  _setKnobLearnHighlight(param = null) {
+    document.querySelectorAll('.knob-group[data-param]').forEach((group) => {
+      group.classList.toggle('midi-learning', !!param && group.dataset.param === param);
+    });
+  }
+
   // ── KNOB BINDING ──
   _bindKnobs() {
     const onDown = (e, wrapper) => {
+      if (typeof e.button === 'number' && e.button !== 0) return;
       e.preventDefault();
       const group = wrapper.closest('.knob-group');
       this.activeKnob = group;
@@ -3704,6 +3762,29 @@ class PedalUI {
     document.querySelectorAll('.knob-wrapper').forEach(w => {
       w.addEventListener('mousedown', e => onDown(e, w));
       w.addEventListener('touchstart', e => { e.preventDefault(); onDown(e, w); }, {passive:false});
+      w.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        if (!this.midi) return;
+        const g = w.closest('.knob-group');
+        const param = g?.dataset?.param;
+        if (!param) return;
+        if (e.shiftKey) {
+          const cleared = this.midi.clearMapping(param);
+          if (cleared) {
+            this._setKnobLearnHighlight(null);
+            this._knobMidiLearnMode = false;
+            this._onMIDIParam('ccCleared', { param });
+          }
+          return;
+        }
+        const ok = this.midi.startLearn(param);
+        if (!ok) return;
+        const learnBtn = document.getElementById('midiLearnBtn');
+        learnBtn?.classList.add('active');
+        this._midiLearnMode = false;
+        this._knobMidiLearnMode = true;
+        this._setKnobLearnHighlight(param);
+      });
       w.addEventListener('wheel', e => {
         e.preventDefault();
         const g = w.closest('.knob-group');
@@ -3744,6 +3825,7 @@ class PedalUI {
     document.addEventListener('touchmove', onMove, {passive:false});
     document.addEventListener('mouseup', () => { this.activeKnob = null; document.body.style.cursor=''; });
     document.addEventListener('touchend', () => { this.activeKnob = null; });
+    this._renderKnobAssignmentLabels();
   }
 
   _setKnobValue(group, value) {
@@ -4270,6 +4352,8 @@ class PedalUI {
     learnBtn.addEventListener('click', () => {
       if (this.midi.learning) {
         this.midi.cancelLearn();
+        this._setKnobLearnHighlight(null);
+        this._knobMidiLearnMode = false;
       } else {
         learnBtn.classList.add('active');
         // Enter learn mode — next CC grid click selects target
@@ -4282,7 +4366,10 @@ class PedalUI {
       item.addEventListener('click', () => {
         if (this._midiLearnMode || learnBtn.classList.contains('active')) {
           const param = item.dataset.ccParam;
-          this.midi.startLearn(param);
+          const ok = this.midi.startLearn(param);
+          if (!ok) return;
+          this._setKnobLearnHighlight(param);
+          this._knobMidiLearnMode = false;
           this._scheduleAutoSave();
           learnBtn.classList.add('active');
           this._midiLearnMode = false;
@@ -4333,6 +4420,18 @@ class PedalUI {
         break;
       }
       case 'samplePitchOff': {
+        break;
+      }
+      case 'ccLearned': {
+        this._setKnobLearnHighlight(null);
+        this._knobMidiLearnMode = false;
+        this._renderKnobAssignmentLabels();
+        this._scheduleAutoSave();
+        break;
+      }
+      case 'ccCleared': {
+        this._renderKnobAssignmentLabels();
+        this._scheduleAutoSave();
         break;
       }
       case 'time': {
