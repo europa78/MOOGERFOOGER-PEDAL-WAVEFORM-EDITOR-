@@ -623,6 +623,59 @@
       50% { box-shadow: 0 0 12px var(--led-green), 0 0 24px rgba(0,255,85,0.45); }
     }
 
+
+    /* ═══════════════════════════════════════
+       SAMPLE PIANO ROLL (C1-B4)
+       ═══════════════════════════════════════ */
+    .piano-roll {
+      background: linear-gradient(180deg, #121212 0%, #101010 100%);
+      border-top: 1px solid #2a2a2a;
+      border-bottom: 1px solid #2a2a2a;
+      padding: 8px 10px 10px;
+      position: relative; z-index: 5;
+    }
+    .piano-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 6px;
+    }
+    .piano-title {
+      font-size: 9px; font-weight: 700; color: var(--text-cream);
+      letter-spacing: 2px; text-transform: uppercase;
+    }
+    .piano-meta {
+      font-size: 7px; color: var(--text-dim); letter-spacing: 0.5px;
+    }
+    .piano-meta span { color: var(--led-amber); font-weight: 600; }
+    .piano-keys {
+      display: grid;
+      grid-template-columns: repeat(48, minmax(10px, 1fr));
+      gap: 2px;
+      user-select: none;
+    }
+    .piano-key {
+      border: 1px solid #404040;
+      border-radius: 2px;
+      padding: 12px 0 4px;
+      text-align: center;
+      font-size: 7px;
+      color: #111;
+      background: linear-gradient(180deg, #f2f2f2 0%, #d9d9d9 100%);
+      cursor: pointer;
+      line-height: 1;
+    }
+    .piano-key.black {
+      color: #ddd;
+      background: linear-gradient(180deg, #3b3b3b 0%, #1f1f1f 100%);
+      border-color: #555;
+      padding-top: 8px;
+    }
+    .piano-key.active {
+      border-color: var(--led-amber);
+      box-shadow: 0 0 6px rgba(255,170,0,0.45);
+      color: #fff;
+      background: linear-gradient(180deg, #5a4a1a 0%, #3d300f 100%);
+    }
+
     /* ═══════════════════════════════════════
        WAVEFORM EDITOR
        ═══════════════════════════════════════ */
@@ -1459,6 +1512,16 @@
       </div>
     </div>
 
+
+    <!-- ═══ PIANO ROLL (MIDI/Mouse Pitch) ═══ -->
+    <div class="piano-roll" id="pianoRoll">
+      <div class="piano-header">
+        <span class="piano-title">Sample Pitch Keys</span>
+        <span class="piano-meta">Range: <span>C1–B4</span> · Protocol: <span>USB / USB-C MIDI</span></span>
+      </div>
+      <div class="piano-keys" id="pianoKeys"></div>
+    </div>
+
     <!-- ═══ WAVEFORM EDITOR ═══ -->
     <div class="waveform-editor" id="waveformEditor">
       <div class="we-header">
@@ -1582,6 +1645,8 @@ class AnalogDelayEngine {
     this.recordingDestination = null;
     this.mediaRecorder = null;
     this.recordChunks = [];
+    this.samplePitchRatio = 1;
+    this.samplePitchNote = 48; // C3 reference
 
     // Params from manual
     this.params = {
@@ -1950,11 +2015,28 @@ class AnalogDelayEngine {
     this.sampleSource.loop = true;
     this.sampleSource.loopStart = startSec;
     this.sampleSource.loopEnd = endSec;
+    this.sampleSource.playbackRate.value = this.samplePitchRatio;
     this.sampleSource.connect(this.sampleInputGainNode);
     this.sampleInputGainNode.connect(this.inputBlendSumNode);
     this.sampleSource.start(0, startSec);
     this.samplePlaying = true;
     this._playRegionDur = regionDur;
+  }
+
+
+
+  setSamplePitchByMidi(note) {
+    const n = Math.max(24, Math.min(71, Number(note) || 48)); // C1..B4
+    this.samplePitchNote = n;
+    this.samplePitchRatio = Math.pow(2, (n - 48) / 12); // C3 = unity
+    if (this.ctx && this.sampleSource) {
+      this.sampleSource.playbackRate.setTargetAtTime(this.samplePitchRatio, this.ctx.currentTime, 0.01);
+    }
+    return this.samplePitchRatio;
+  }
+
+  getSamplePitchState() {
+    return { note: this.samplePitchNote, ratio: this.samplePitchRatio };
   }
 
   stopSample() {
@@ -2614,6 +2696,8 @@ class MIDIEngine {
   _onNoteOn(note, velocity) {
     this._log(`Note On: ${note} vel:${velocity}`, 'note');
 
+    this.uiCallback?.('samplePitchNote', note);
+
     if (this.noteMode === 'off') return;
 
     if (this.noteMode === 'absolute') {
@@ -2633,6 +2717,7 @@ class MIDIEngine {
   }
 
   _onNoteOff(note) {
+    this.uiCallback?.('samplePitchOff', note);
     // Note off doesn't affect delay in standard mode
   }
 
@@ -3529,6 +3614,7 @@ class PedalUI {
     this.slotAState = null;
     this.slotBState = null;
     this.activeCompareSlot = 'A';
+    this.activePianoNote = null;
 
     // Bind sample loader early so first click works (no init dependency)
     this._bindSampleLoader();
@@ -3537,6 +3623,7 @@ class PedalUI {
   async init() {
     await this.engine.init();
     this.waveformEditor = new WaveformEditor();
+    this._bindPianoRoll();
 
     // Initialize MIDI engine
     this.midi = new MIDIEngine(this.engine, (param, value) => this._onMIDIParam(param, value));
@@ -3802,6 +3889,49 @@ class PedalUI {
       }
     });
   }
+
+
+
+  _bindPianoRoll() {
+    const keysWrap = document.getElementById('pianoKeys');
+    if (!keysWrap) return;
+    keysWrap.innerHTML = '';
+
+    const isBlack = (m) => [1,3,6,8,10].includes(m % 12);
+    const noteName = (m) => {
+      const names = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+      const oct = Math.floor(m / 12) - 1;
+      return `${names[m % 12]}${oct}`;
+    };
+
+    for (let note = 24; note <= 71; note++) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = `piano-key${isBlack(note) ? ' black' : ''}`;
+      btn.dataset.note = String(note);
+      btn.title = noteName(note);
+      btn.textContent = note % 12 === 0 ? noteName(note) : '';
+      btn.addEventListener('click', () => {
+        this._setSamplePitchFromNote(note, true);
+      });
+      keysWrap.appendChild(btn);
+    }
+
+    this._highlightPianoNote(this.engine.getSamplePitchState().note);
+  }
+
+  _highlightPianoNote(note) {
+    this.activePianoNote = note;
+    document.querySelectorAll('#pianoKeys .piano-key').forEach((el) => {
+      el.classList.toggle('active', Number(el.dataset.note) === Number(note));
+    });
+  }
+
+  _setSamplePitchFromNote(note) {
+    this.engine.setSamplePitchByMidi(note);
+    this._highlightPianoNote(note);
+  }
+
 
   // ── SAMPLE LOADER ──
   _bindSampleLoader() {
@@ -4196,6 +4326,13 @@ class PedalUI {
   // ── MIDI → UI Param Callback ──
   _onMIDIParam(param, value) {
     switch(param) {
+      case 'samplePitchNote': {
+        this._setSamplePitchFromNote(value);
+        break;
+      }
+      case 'samplePitchOff': {
+        break;
+      }
       case 'time': {
         const g = document.getElementById('knob-time');
         g.dataset.value = value;
