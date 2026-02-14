@@ -11,10 +11,10 @@ let mainWindow;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 840,
-    height: 1460,
-    minWidth: 700,
-    minHeight: 1000,
+    width: 1092,
+    height: 1898,
+    minWidth: 910,
+    minHeight: 1300,
     resizable: true,
     backgroundColor: '#111111',
     titleBarStyle: 'hiddenInset',
