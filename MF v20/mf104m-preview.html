@@ -642,7 +642,42 @@
       letter-spacing: 2.5px; text-transform: uppercase;
     }
     .we-info {
-      display: flex; gap: 10px;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .we-zoom-controls {
+      display: inline-flex;
+      gap: 4px;
+      margin-right: 4px;
+    }
+    .we-zoom-btn, .we-export-btn {
+      border: 1px solid #4a4a4a;
+      background: linear-gradient(180deg, #3a3a3a 0%, #2a2a2a 100%);
+      color: var(--text-white);
+      border-radius: 3px;
+      font-size: 10px;
+      line-height: 1;
+      cursor: pointer;
+    }
+    .we-zoom-btn {
+      width: 18px;
+      height: 18px;
+      font-weight: 700;
+    }
+    .we-export-btn {
+      height: 20px;
+      padding: 0 7px;
+      font-size: 8px;
+      letter-spacing: 0.7px;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+    .we-zoom-btn:hover, .we-export-btn:hover {
+      border-color: #5a5a5a;
+      background: linear-gradient(180deg, #4a4a4a 0%, #323232 100%);
+    }
+    .we-zoom-btn:disabled, .we-export-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
     }
     .we-info-item {
       font-size: 8px; color: var(--text-dim); letter-spacing: 0.5px;
@@ -1429,6 +1464,11 @@
       <div class="we-header">
         <span class="we-title">Waveform</span>
         <div class="we-info">
+          <div class="we-zoom-controls">
+            <button class="we-zoom-btn" id="weZoomOutBtn" title="Zoom out">−</button>
+            <button class="we-zoom-btn" id="weZoomInBtn" title="Zoom in">+</button>
+          </div>
+          <button class="we-export-btn" id="weExportSlicesBtn" title="Export slices between hit points">Export Slices</button>
           <span class="we-info-item" id="weSampleRate"></span>
           <span class="we-info-item" id="weDuration"></span>
         </div>
@@ -2861,6 +2901,9 @@ class WaveformEditor {
     this.thresholdSlider = document.getElementById('weThreshold');
     this.thresholdVal = document.getElementById('weThresholdVal');
     this.hitCountEl = document.getElementById('weHitCount');
+    this.zoomInBtn = document.getElementById('weZoomInBtn');
+    this.zoomOutBtn = document.getElementById('weZoomOutBtn');
+    this.exportSlicesBtn = document.getElementById('weExportSlicesBtn');
 
     this.audioBuffer = null;
     this.channelData = null;
@@ -2871,6 +2914,8 @@ class WaveformEditor {
     this.startPos = 0;
     this.endPos = 1;
     this.hitPoints = []; // array of fractional positions
+    this.viewStart = 0;
+    this.viewEnd = 1;
 
     // Drag state
     this.dragging = null; // 'start' | 'end' | null
@@ -2913,6 +2958,8 @@ class WaveformEditor {
     // Reset markers
     this.startPos = 0;
     this.endPos = 1;
+    this.viewStart = 0;
+    this.viewEnd = 1;
     this._updateMarkerPositions();
 
     // Update info
@@ -2937,7 +2984,10 @@ class WaveformEditor {
     ctx.clearRect(0, 0, w, h);
 
     const len = data.length;
-    const samplesPerPx = len / w;
+    const viewStartSample = Math.floor(this.viewStart * len);
+    const viewEndSample = Math.max(viewStartSample + 1, Math.floor(this.viewEnd * len));
+    const viewLen = viewEndSample - viewStartSample;
+    const samplesPerPx = viewLen / w;
     const mid = h / 2;
 
     // ── Grid lines ──
@@ -2957,9 +3007,12 @@ class WaveformEditor {
     }
     // Vertical: time divisions (every 0.5s or adaptive)
     if (this.duration > 0) {
-      const interval = this.duration > 10 ? 2 : this.duration > 4 ? 1 : this.duration > 1 ? 0.5 : 0.1;
-      for (let t = interval; t < this.duration; t += interval) {
-        const x = (t / this.duration) * w;
+      const viewDuration = (this.viewEnd - this.viewStart) * this.duration;
+      const interval = viewDuration > 10 ? 2 : viewDuration > 4 ? 1 : viewDuration > 1 ? 0.5 : 0.1;
+      const viewStartTime = this.viewStart * this.duration;
+      const viewEndTime = this.viewEnd * this.duration;
+      for (let t = Math.ceil(viewStartTime / interval) * interval; t < viewEndTime; t += interval) {
+        const x = ((t / this.duration) - this.viewStart) / (this.viewEnd - this.viewStart) * w;
         ctx.beginPath();
         ctx.moveTo(x, 0);
         ctx.lineTo(x, h);
@@ -2986,8 +3039,8 @@ class WaveformEditor {
     ctx.moveTo(0, mid);
 
     for (let x = 0; x < w; x++) {
-      const startSample = Math.floor(x * samplesPerPx);
-      const endSample = Math.min(Math.floor((x + 1) * samplesPerPx), len);
+      const startSample = viewStartSample + Math.floor(x * samplesPerPx);
+      const endSample = Math.min(viewStartSample + Math.floor((x + 1) * samplesPerPx), viewEndSample);
       let max = -1;
       for (let s = startSample; s < endSample; s++) {
         const abs = Math.abs(data[s]);
@@ -2997,8 +3050,8 @@ class WaveformEditor {
       ctx.lineTo(x, y);
     }
     for (let x = w - 1; x >= 0; x--) {
-      const startSample = Math.floor(x * samplesPerPx);
-      const endSample = Math.min(Math.floor((x + 1) * samplesPerPx), len);
+      const startSample = viewStartSample + Math.floor(x * samplesPerPx);
+      const endSample = Math.min(viewStartSample + Math.floor((x + 1) * samplesPerPx), viewEndSample);
       let max = -1;
       for (let s = startSample; s < endSample; s++) {
         const abs = Math.abs(data[s]);
@@ -3015,8 +3068,8 @@ class WaveformEditor {
     ctx.lineWidth = 1;
     ctx.beginPath();
     for (let x = 0; x < w; x++) {
-      const startSample = Math.floor(x * samplesPerPx);
-      const endSample = Math.min(Math.floor((x + 1) * samplesPerPx), len);
+      const startSample = viewStartSample + Math.floor(x * samplesPerPx);
+      const endSample = Math.min(viewStartSample + Math.floor((x + 1) * samplesPerPx), viewEndSample);
       let maxVal = -1, minVal = 1;
       for (let s = startSample; s < endSample; s++) {
         if (data[s] > maxVal) maxVal = data[s];
@@ -3035,8 +3088,8 @@ class WaveformEditor {
     // Bottom contour
     ctx.beginPath();
     for (let x = 0; x < w; x++) {
-      const startSample = Math.floor(x * samplesPerPx);
-      const endSample = Math.min(Math.floor((x + 1) * samplesPerPx), len);
+      const startSample = viewStartSample + Math.floor(x * samplesPerPx);
+      const endSample = Math.min(viewStartSample + Math.floor((x + 1) * samplesPerPx), viewEndSample);
       let minVal = 1;
       for (let s = startSample; s < endSample; s++) {
         if (data[s] < minVal) minVal = data[s];
@@ -3058,12 +3111,13 @@ class WaveformEditor {
 
     ctx.beginPath();
     for (let x = 0; x < w; x++) {
-      const center = Math.floor(x * samplesPerPx);
-      const s0 = Math.max(0, center - Math.floor(rmsWindowSamples / 2));
-      const s1 = Math.min(len, s0 + rmsWindowSamples);
+      const center = viewStartSample + Math.floor(x * samplesPerPx);
+      const s0 = Math.max(viewStartSample, center - Math.floor(rmsWindowSamples / 2));
+      const s1 = Math.min(viewEndSample, s0 + rmsWindowSamples);
       let sumSq = 0;
       for (let s = s0; s < s1; s++) sumSq += data[s] * data[s];
-      const rms = Math.sqrt(sumSq / (s1 - s0));
+      const denom = Math.max(1, s1 - s0);
+      const rms = Math.sqrt(sumSq / denom);
       const y = mid - rms * mid * 0.92;
       if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
     }
@@ -3071,12 +3125,13 @@ class WaveformEditor {
     // Mirror
     ctx.beginPath();
     for (let x = 0; x < w; x++) {
-      const center = Math.floor(x * samplesPerPx);
-      const s0 = Math.max(0, center - Math.floor(rmsWindowSamples / 2));
-      const s1 = Math.min(len, s0 + rmsWindowSamples);
+      const center = viewStartSample + Math.floor(x * samplesPerPx);
+      const s0 = Math.max(viewStartSample, center - Math.floor(rmsWindowSamples / 2));
+      const s1 = Math.min(viewEndSample, s0 + rmsWindowSamples);
       let sumSq = 0;
       for (let s = s0; s < s1; s++) sumSq += data[s] * data[s];
-      const rms = Math.sqrt(sumSq / (s1 - s0));
+      const denom = Math.max(1, s1 - s0);
+      const rms = Math.sqrt(sumSq / denom);
       const y = mid + rms * mid * 0.92;
       if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
     }
@@ -3175,7 +3230,9 @@ class WaveformEditor {
     for (const pos of this.hitPoints) {
       const el = document.createElement('div');
       el.className = 'we-hitpoint';
-      el.style.left = (pos * 100) + '%';
+      if (pos < this.viewStart || pos > this.viewEnd) continue;
+      const viewPos = (pos - this.viewStart) / (this.viewEnd - this.viewStart);
+      el.style.left = (viewPos * 100) + '%';
       this.hitpointsEl.appendChild(el);
     }
   }
@@ -3183,13 +3240,17 @@ class WaveformEditor {
   // ── Marker positioning ──
   _updateMarkerPositions() {
     const w = this.displayWidth || this.wrap.getBoundingClientRect().width;
-    this.markerStart.style.left = (this.startPos * 100) + '%';
-    this.markerEnd.style.left = (this.endPos * 100) + '%';
+    const viewSpan = Math.max(0.0001, this.viewEnd - this.viewStart);
+    this.markerStart.style.left = (((this.startPos - this.viewStart) / viewSpan) * 100) + '%';
+    this.markerEnd.style.left = (((this.endPos - this.viewStart) / viewSpan) * 100) + '%';
     this.markerEnd.style.right = 'auto';
 
     // Update outside-region shading
-    this.regionLeft.style.width = (this.startPos * 100) + '%';
-    this.regionRight.style.width = ((1 - this.endPos) * 100) + '%';
+    this.regionLeft.style.width = (Math.max(0, (this.startPos - this.viewStart) / viewSpan) * 100) + '%';
+    this.regionRight.style.width = (Math.max(0, (this.viewEnd - this.endPos) / viewSpan) * 100) + '%';
+
+    this.markerStart.style.display = (this.startPos >= this.viewStart && this.startPos <= this.viewEnd) ? 'block' : 'none';
+    this.markerEnd.style.display = (this.endPos >= this.viewStart && this.endPos <= this.viewEnd) ? 'block' : 'none';
 
     this._updateTimeReadouts();
     this.onRegionChange?.();
@@ -3221,6 +3282,98 @@ class WaveformEditor {
     this.startPos = s;
     this.endPos = e;
     this._updateMarkerPositions();
+    if (this.channelData) this._drawWaveform();
+  }
+
+  zoom(delta = 0.5) {
+    if (!this.channelData) return;
+    const currentSpan = this.viewEnd - this.viewStart;
+    const minSpan = 0.02;
+    const newSpan = Math.max(minSpan, Math.min(1, currentSpan * delta));
+    const center = (this.startPos + this.endPos) * 0.5;
+    let start = center - newSpan * 0.5;
+    let end = center + newSpan * 0.5;
+    if (start < 0) { end -= start; start = 0; }
+    if (end > 1) { start -= (end - 1); end = 1; }
+    this.viewStart = Math.max(0, start);
+    this.viewEnd = Math.min(1, end);
+    this._updateMarkerPositions();
+    this._drawWaveform();
+  }
+
+  zoomIn() { this.zoom(0.5); }
+  zoomOut() { this.zoom(2); }
+
+  _sliceBounds() {
+    const hits = this.hitPoints.filter(p => p > this.startPos && p < this.endPos).sort((a,b) => a - b);
+    return [this.startPos, ...hits, this.endPos];
+  }
+
+  exportSlices() {
+    if (!this.audioBuffer) return 0;
+    const bounds = this._sliceBounds();
+    if (bounds.length < 2) return 0;
+    let exported = 0;
+    for (let i = 0; i < bounds.length - 1; i++) {
+      const start = bounds[i];
+      const end = bounds[i + 1];
+      if (end <= start) continue;
+      const blob = this._encodeSliceToWav(start, end);
+      if (!blob) continue;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `mf104m-slice-${String(i + 1).padStart(2, '0')}.wav`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1500);
+      exported++;
+    }
+    return exported;
+  }
+
+  _encodeSliceToWav(startNorm, endNorm) {
+    const sr = this.audioBuffer.sampleRate;
+    const channels = this.audioBuffer.numberOfChannels;
+    const startSample = Math.max(0, Math.floor(startNorm * this.audioBuffer.length));
+    const endSample = Math.min(this.audioBuffer.length, Math.ceil(endNorm * this.audioBuffer.length));
+    const frames = endSample - startSample;
+    if (frames <= 0) return null;
+
+    const bytesPerSample = 2;
+    const blockAlign = channels * bytesPerSample;
+    const dataSize = frames * blockAlign;
+    const buffer = new ArrayBuffer(44 + dataSize);
+    const view = new DataView(buffer);
+
+    const writeStr = (off, text) => { for (let i = 0; i < text.length; i++) view.setUint8(off + i, text.charCodeAt(i)); };
+    writeStr(0, 'RIFF');
+    view.setUint32(4, 36 + dataSize, true);
+    writeStr(8, 'WAVE');
+    writeStr(12, 'fmt ');
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, channels, true);
+    view.setUint32(24, sr, true);
+    view.setUint32(28, sr * blockAlign, true);
+    view.setUint16(32, blockAlign, true);
+    view.setUint16(34, 16, true);
+    writeStr(36, 'data');
+    view.setUint32(40, dataSize, true);
+
+    const channelData = [];
+    for (let ch = 0; ch < channels; ch++) channelData.push(this.audioBuffer.getChannelData(ch));
+    let offset = 44;
+    for (let i = 0; i < frames; i++) {
+      for (let ch = 0; ch < channels; ch++) {
+        const sample = channelData[ch][startSample + i] || 0;
+        const clamped = Math.max(-1, Math.min(1, sample));
+        const int16 = clamped < 0 ? Math.round(clamped * 0x8000) : Math.round(clamped * 0x7FFF);
+        view.setInt16(offset, int16, true);
+        offset += 2;
+      }
+    }
+
+    return new Blob([buffer], { type: 'audio/wav' });
   }
 
   getState() {
@@ -3253,7 +3406,9 @@ class WaveformEditor {
       const regionDur = durationSec;
       const loopPos = (elapsed % regionDur) / regionDur;
       const frac = startFrac + loopPos * (endFrac - startFrac);
-      this.playhead.style.left = (frac * 100) + '%';
+      const viewSpan = Math.max(0.0001, this.viewEnd - this.viewStart);
+      const viewFrac = (frac - this.viewStart) / viewSpan;
+      this.playhead.style.left = (viewFrac * 100) + '%';
       this._playheadRAF = requestAnimationFrame(animate);
     };
     animate();
@@ -3272,6 +3427,15 @@ class WaveformEditor {
     this.markerStart.addEventListener('touchstart', (e) => { e.preventDefault(); this._onMarkerDown(e, 'start'); }, {passive:false});
     this.markerEnd.addEventListener('touchstart', (e) => { e.preventDefault(); this._onMarkerDown(e, 'end'); }, {passive:false});
 
+    this.zoomInBtn?.addEventListener('click', () => this.zoomIn());
+    this.zoomOutBtn?.addEventListener('click', () => this.zoomOut());
+    this.exportSlicesBtn?.addEventListener('click', () => {
+      const count = this.exportSlices();
+      if (count === 0) return;
+      this.exportSlicesBtn.textContent = `Exported ${count}`;
+      setTimeout(() => { this.exportSlicesBtn.textContent = 'Export Slices'; }, 1200);
+    });
+
     document.addEventListener('mousemove', (e) => this._onMarkerMove(e));
     document.addEventListener('touchmove', (e) => this._onMarkerMove(e), {passive:false});
     document.addEventListener('mouseup', () => this._onMarkerUp());
@@ -3289,7 +3453,7 @@ class WaveformEditor {
     this.wrap.addEventListener('dblclick', (e) => {
       if (!this.channelData) return;
       const rect = this.wrap.getBoundingClientRect();
-      const frac = (e.clientX - rect.left) / rect.width;
+      const frac = this.viewStart + ((e.clientX - rect.left) / rect.width) * (this.viewEnd - this.viewStart);
       // Add manual hit point
       this.hitPoints.push(frac);
       this.hitPoints.sort((a, b) => a - b);
@@ -3305,7 +3469,9 @@ class WaveformEditor {
     const clientX = e.clientX ?? e.touches?.[0]?.clientX;
     const rect = this.wrap.getBoundingClientRect();
     const currentFrac = which === 'start' ? this.startPos : this.endPos;
-    this.dragOffsetX = clientX - (rect.left + currentFrac * rect.width);
+    const viewSpan = Math.max(0.0001, this.viewEnd - this.viewStart);
+    const currentViewFrac = (currentFrac - this.viewStart) / viewSpan;
+    this.dragOffsetX = clientX - (rect.left + currentViewFrac * rect.width);
   }
 
   _onMarkerMove(e) {
@@ -3313,7 +3479,9 @@ class WaveformEditor {
     e.preventDefault?.();
     const clientX = e.clientX ?? e.touches?.[0]?.clientX;
     const rect = this.wrap.getBoundingClientRect();
-    let frac = (clientX - rect.left - this.dragOffsetX) / rect.width;
+    let viewFrac = (clientX - rect.left - this.dragOffsetX) / rect.width;
+    viewFrac = Math.max(0, Math.min(1, viewFrac));
+    let frac = this.viewStart + viewFrac * (this.viewEnd - this.viewStart);
     frac = Math.max(0, Math.min(1, frac));
 
     if (this.dragging === 'start') {
