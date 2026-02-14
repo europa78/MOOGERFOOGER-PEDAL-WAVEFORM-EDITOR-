@@ -1,0 +1,16 @@
+{
+  "name": "moogerfooger-mf104m",
+  "version": "2.0.0",
+  "description": "Photorealistic MF-104M Analog Delay pedal with Web Audio API engine - Electron",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev"
+  },
+  "keywords": ["moog", "moogerfooger", "analog-delay", "effects-pedal", "audio", "bbd", "electron"],
+  "author": "Mike",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^33.0.0"
+  }
+}

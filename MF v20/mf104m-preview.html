@@ -1,0 +1,4509 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MF-104M Analog Delay</title>
+  <style>
+    /* ═══════════════════════════════════════
+       RESET & VARIABLES
+       ═══════════════════════════════════════ */
+    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+
+    :root {
+      --wood-dark: #4a2c17;
+      --wood-mid: #6b3d22;
+      --wood-light: #8b5e3c;
+      --panel-bg: #1c1c1c;
+      --panel-raised: #252525;
+      --text-cream: #d4cfc4;
+      --text-white: #eae6de;
+      --text-dim: #7a756a;
+      --text-label: #b0aa9e;
+      --led-green: #00ff55;
+      --led-green-dim: #1a3d20;
+      --led-red: #ff2222;
+      --led-red-dim: #3d1a1a;
+      --led-amber: #ffaa00;
+      --led-amber-dim: #3d2d00;
+      --chrome: #b8b8b8;
+      --chrome-dark: #606060;
+    }
+
+    html, body {
+      width: 100%; height: 100%;
+      overflow-y: auto; overflow-x: hidden;
+      background: #0a0a0a;
+      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-app-region: drag;
+    }
+
+    button, .knob-wrapper, .toggle-switch, .footswitch, .waveform-selector,
+    .sample-load-btn, .sample-play-btn, .sample-stop-btn,
+    .waveform-editor, .we-threshold-slider, .we-marker,
+    .midi-panel, .midi-toggle-btn, .midi-device-select, .midi-ch-select,
+    .midi-learn-btn, .midi-clock-btn {
+      -webkit-app-region: no-drag;
+    }
+
+    /* ═══════════════════════════════════════
+       PEDAL HOUSING
+       ═══════════════════════════════════════ */
+    .pedal-container {
+      width: 600px;
+      height: 1400px;
+      margin: 10px auto;
+      display: flex;
+      position: relative;
+      filter: drop-shadow(0 16px 40px rgba(0,0,0,0.8));
+    }
+
+    /* ═══════════════════════════════════════
+       WOOD SIDE PANELS
+       ═══════════════════════════════════════ */
+    .wood-panel {
+      width: 34px;
+      height: 100%;
+      position: relative;
+      flex-shrink: 0;
+      overflow: hidden;
+    }
+    .wood-panel-left { border-radius: 5px 0 0 5px; }
+    .wood-panel-right { border-radius: 0 5px 5px 0; }
+
+    .wood-panel::before {
+      content: '';
+      position: absolute; inset: 0;
+      background:
+        repeating-linear-gradient(2deg, transparent 0px, transparent 2px, rgba(0,0,0,0.07) 2px, rgba(0,0,0,0.07) 3px, transparent 3px, transparent 7px),
+        repeating-linear-gradient(-1deg, transparent 0px, transparent 8px, rgba(139,94,60,0.12) 8px, rgba(139,94,60,0.12) 10px, transparent 10px, transparent 22px),
+        radial-gradient(ellipse 12px 40px at 50% 25%, rgba(74,44,23,0.35) 0%, transparent 100%),
+        radial-gradient(ellipse 8px 30px at 55% 65%, rgba(74,44,23,0.25) 0%, transparent 100%),
+        linear-gradient(180deg, #7a4f2e 0%, #8b5e3c 15%, #6b3d22 30%, #8b5e3c 45%, #7a4f2e 55%, #6b3d22 70%, #8b5e3c 85%, #7a4f2e 100%);
+    }
+    .wood-panel::after {
+      content: '';
+      position: absolute; inset: 0;
+      border-radius: inherit;
+    }
+    .wood-panel-left::after {
+      background: linear-gradient(90deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.1) 40%, rgba(255,255,255,0.02) 70%, rgba(0,0,0,0.12) 100%);
+    }
+    .wood-panel-right::after {
+      background: linear-gradient(90deg, rgba(0,0,0,0.12) 0%, rgba(255,255,255,0.02) 30%, rgba(255,255,255,0.1) 60%, rgba(255,255,255,0.05) 100%);
+    }
+    .wood-groove {
+      position: absolute; width: 100%; height: 2px; z-index: 2;
+      background: linear-gradient(90deg, transparent 10%, rgba(0,0,0,0.3) 30%, rgba(0,0,0,0.4) 50%, rgba(0,0,0,0.3) 70%, transparent 90%);
+    }
+
+    /* ═══════════════════════════════════════
+       FACEPLATE
+       ═══════════════════════════════════════ */
+    .faceplate {
+      flex: 1;
+      background: var(--panel-bg);
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .faceplate::before {
+      content: '';
+      position: absolute; inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.025'/%3E%3C/svg%3E");
+      pointer-events: none; z-index: 1;
+    }
+
+    /* ═══════════════════════════════════════
+       SCREWS
+       ═══════════════════════════════════════ */
+    .screw {
+      width: 11px; height: 11px; border-radius: 50%;
+      background: radial-gradient(circle at 40% 35%, #ccc 0%, #999 35%, #666 100%);
+      box-shadow: inset 0 0 1px rgba(0,0,0,0.5), 0 1px 2px rgba(0,0,0,0.3);
+      position: absolute; z-index: 10;
+    }
+    .screw::before {
+      content: ''; position: absolute; top: 50%; left: 50%;
+      width: 7px; height: 1.5px; background: rgba(0,0,0,0.4);
+      border-radius: 1px; transform: translate(-50%,-50%) rotate(35deg);
+    }
+    .screw::after {
+      content: ''; position: absolute; top: 50%; left: 50%;
+      width: 1.5px; height: 7px; background: rgba(0,0,0,0.4);
+      border-radius: 1px; transform: translate(-50%,-50%) rotate(35deg);
+    }
+    .screw-tl { top: 8px; left: 8px; }
+    .screw-tr { top: 8px; right: 8px; }
+    .screw-bl { bottom: 8px; left: 8px; }
+    .screw-br { bottom: 8px; right: 8px; }
+
+    /* ═══════════════════════════════════════
+       TOP HEADER
+       ═══════════════════════════════════════ */
+    .top-header {
+      height: 48px;
+      background: linear-gradient(180deg, #272727 0%, #1e1e1e 100%);
+      border-bottom: 1px solid #333;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 32px;
+      position: relative; z-index: 5;
+    }
+    .brand-text {
+      font-size: 16px; font-weight: 700; color: var(--text-cream);
+      letter-spacing: 2px; font-style: italic;
+    }
+    .model-info {
+      text-align: right;
+    }
+    .model-number {
+      font-size: 15px; font-weight: 800; color: var(--text-cream);
+      letter-spacing: 1px; font-style: italic;
+    }
+    .model-sub {
+      font-size: 8px; color: var(--text-dim);
+      letter-spacing: 3px; text-transform: uppercase; font-weight: 700;
+      font-style: italic;
+    }
+
+    /* ═══════════════════════════════════════
+       SAMPLE LOADER BAR
+       ═══════════════════════════════════════ */
+    .sample-bar {
+      min-height: 38px;
+      background: linear-gradient(180deg, #1a1a1a 0%, #161616 100%);
+      border-bottom: 1px solid #2a2a2a;
+      display: flex; align-items: center; justify-content: center;
+      flex-wrap: wrap;
+      gap: 6px 8px; padding: 6px 16px;
+      position: relative; z-index: 5;
+    }
+    .sample-load-btn {
+      background: linear-gradient(180deg, #3a3a3a 0%, #2a2a2a 100%);
+      border: 1px solid #4a4a4a;
+      color: var(--text-cream); font-size: 10px; font-weight: 700;
+      letter-spacing: 1.5px; text-transform: uppercase;
+      padding: 6px 14px; border-radius: 3px; cursor: pointer;
+      transition: all 0.15s;
+    }
+    .sample-load-btn:hover { background: linear-gradient(180deg, #4a4a4a 0%, #3a3a3a 100%); border-color: #5a5a5a; }
+    .sample-load-btn:active { transform: translateY(1px); }
+
+    .sample-name {
+      font-size: 10px; color: var(--text-dim);
+      letter-spacing: 0.5px;
+      max-width: 200px; overflow: hidden;
+      text-overflow: ellipsis; white-space: nowrap;
+    }
+    .sample-name.loaded { color: var(--led-green); }
+
+    .io-select {
+      background: #151515;
+      border: 1px solid #3a3a3a;
+      color: var(--text-label);
+      border-radius: 3px;
+      font-size: 9px;
+      padding: 5px 6px;
+      max-width: 140px;
+    }
+    .io-select:focus { outline: none; border-color: var(--led-green); }
+    .io-status {
+      font-size: 8px;
+      color: var(--text-dim);
+      letter-spacing: 0.3px;
+      max-width: 108px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .io-gain {
+      width: 86px;
+      accent-color: #38c172;
+    }
+    .io-latency {
+      font-size: 8px;
+      color: var(--text-dim);
+      min-width: 66px;
+      text-align: right;
+      letter-spacing: 0.2px;
+    }
+    .io-blend {
+      width: 72px;
+      accent-color: #e6b800;
+    }
+
+    .sample-play-btn, .sample-stop-btn, .sample-rec-btn {
+      width: 28px; height: 28px; border-radius: 50%;
+      border: 1px solid #4a4a4a; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.15s;
+    }
+    .sample-play-btn {
+      background: linear-gradient(180deg, #2d4a2d 0%, #1a3a1a 100%);
+    }
+    .sample-play-btn:hover { background: linear-gradient(180deg, #3d5a3d 0%, #2a4a2a 100%); }
+    .sample-stop-btn {
+      background: linear-gradient(180deg, #4a2d2d 0%, #3a1a1a 100%);
+    }
+    .sample-stop-btn:hover { background: linear-gradient(180deg, #5a3d3d 0%, #4a2a2a 100%); }
+    .sample-rec-btn {
+      background: linear-gradient(180deg, #5a2222 0%, #3a1111 100%);
+    }
+    .sample-rec-btn:hover { background: linear-gradient(180deg, #6a2a2a 0%, #4a1a1a 100%); }
+    .sample-rec-btn.recording { border-color: #ff5555; box-shadow: 0 0 6px rgba(255,50,50,0.45); }
+    .rec-icon {
+      width: 8px; height: 8px; border-radius: 50%; background: #ff3030;
+    }
+
+    .transport-icon {
+      width: 0; height: 0;
+      border-left: 7px solid var(--led-green);
+      border-top: 5px solid transparent;
+      border-bottom: 5px solid transparent;
+      margin-left: 2px;
+    }
+    .stop-icon {
+      width: 7px; height: 7px;
+      background: var(--led-red);
+      border-radius: 1px;
+    }
+
+    /* ═══════════════════════════════════════
+       JACK STRIP
+       ═══════════════════════════════════════ */
+    .jack-strip {
+      height: 36px;
+      background: linear-gradient(180deg, #181818 0%, #1c1c1c 50%, #181818 100%);
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+      display: flex; align-items: center; justify-content: space-around;
+      padding: 0 18px;
+      position: relative; z-index: 5;
+    }
+    .jack { display: flex; flex-direction: column; align-items: center; gap: 1px; }
+    .jack-hole {
+      width: 14px; height: 14px; border-radius: 50%;
+      background: radial-gradient(circle at 40% 40%, #444 0%, #111 60%, #000 100%);
+      border: 2px solid #555;
+      box-shadow: inset 0 1px 3px rgba(0,0,0,0.8), 0 1px 1px rgba(255,255,255,0.04);
+    }
+    .jack-label {
+      font-size: 6px; color: var(--text-dim); letter-spacing: 0.8px;
+      font-weight: 700; text-transform: uppercase;
+    }
+
+    /* ═══════════════════════════════════════
+       SECTION TITLES
+       ═══════════════════════════════════════ */
+    .section-label {
+      font-size: 11px; font-weight: 800; color: var(--text-cream);
+      letter-spacing: 3px; text-transform: uppercase;
+      text-align: center; margin-bottom: 10px;
+      padding-bottom: 5px;
+      border-bottom: 1px solid rgba(212,207,196,0.15);
+    }
+
+    /* ═══════════════════════════════════════
+       MAIN CONTROLS – 3 COLUMN GRID
+       ═══════════════════════════════════════ */
+    .controls-area {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      gap: 0;
+      padding: 12px 10px 8px;
+      position: relative; z-index: 5;
+    }
+
+    .col-delay, .col-center, .col-lfo {
+      display: flex; flex-direction: column;
+      align-items: center; gap: 6px;
+      padding: 8px 6px;
+    }
+
+    .col-center {
+      border-left: 1px solid rgba(255,255,255,0.06);
+      border-right: 1px solid rgba(255,255,255,0.06);
+      padding: 6px 14px;
+      min-width: 130px;
+    }
+
+    /* ═══════════════════════════════════════
+       KNOB SYSTEM
+       ═══════════════════════════════════════ */
+    .knob-group {
+      display: flex; flex-direction: column;
+      align-items: center; gap: 3px;
+    }
+    .knob-label {
+      font-size: 9px; font-weight: 700; color: var(--text-label);
+      letter-spacing: 2px; text-transform: uppercase; text-align: center;
+    }
+    .knob-wrapper {
+      position: relative; width: 78px; height: 78px;
+      cursor: grab;
+    }
+    .knob-wrapper:active { cursor: grabbing; }
+
+    /* Large knob */
+    .knob-group.large .knob-wrapper { width: 92px; height: 92px; }
+    .knob-group.large .knob {
+      top: 8px; left: 8px; width: 76px; height: 76px;
+    }
+    .knob-group.large .knob-pointer { height: 18px; top: 6px; }
+    .knob-group.large .knob-cap { width: 18px; height: 18px; }
+
+    /* Small knob */
+    .knob-group.small .knob-wrapper { width: 62px; height: 62px; }
+    .knob-group.small .knob {
+      top: 6px; left: 6px; width: 50px; height: 50px;
+    }
+    .knob-group.small .knob-pointer { height: 12px; top: 5px; }
+    .knob-group.small .knob-cap { width: 12px; height: 12px; }
+
+    .knob-scale {
+      position: absolute; inset: 0; border-radius: 50%;
+    }
+    .scale-number {
+      position: absolute; font-size: 7px; color: var(--text-dim);
+      font-weight: 600; transform: translate(-50%, -50%);
+    }
+
+    .knob {
+      position: absolute;
+      top: 7px; left: 7px;
+      width: 64px; height: 64px;
+      border-radius: 50%;
+      background:
+        radial-gradient(ellipse 70% 50% at 50% 35%, rgba(255,255,255,0.07) 0%, transparent 70%),
+        radial-gradient(circle at 50% 50%, transparent 42%, rgba(255,255,255,0.04) 44%, rgba(0,0,0,0.25) 48%, transparent 50%),
+        radial-gradient(circle at 50% 45%, #383838 0%, #282828 40%, #1c1c1c 100%);
+      box-shadow:
+        0 2px 6px rgba(0,0,0,0.5),
+        0 4px 10px rgba(0,0,0,0.3),
+        inset 0 1px 2px rgba(255,255,255,0.08),
+        inset 0 -2px 4px rgba(0,0,0,0.35);
+      transition: box-shadow 0.12s;
+    }
+    .knob:hover {
+      box-shadow:
+        0 2px 6px rgba(0,0,0,0.5), 0 4px 10px rgba(0,0,0,0.3),
+        inset 0 1px 2px rgba(255,255,255,0.12), inset 0 -2px 4px rgba(0,0,0,0.35),
+        0 0 12px rgba(255,255,255,0.03);
+    }
+    .knob-pointer {
+      position: absolute; top: 5px; left: 50%;
+      width: 2px; height: 13px;
+      background: var(--text-cream); border-radius: 1px;
+      transform: translateX(-50%);
+      box-shadow: 0 0 3px rgba(212,207,196,0.25);
+    }
+    .knob-cap {
+      position: absolute; top: 50%; left: 50%;
+      width: 12px; height: 12px; border-radius: 50%;
+      transform: translate(-50%,-50%);
+      background: radial-gradient(circle at 45% 40%, #333, #1a1a1a);
+      box-shadow: inset 0 1px 2px rgba(255,255,255,0.06), 0 1px 2px rgba(0,0,0,0.3);
+    }
+    .knob-value {
+      font-size: 9px; color: var(--text-dim);
+      text-align: center; font-weight: 500; min-height: 12px;
+    }
+
+    /* ═══════════════════════════════════════
+       TOGGLE SWITCH (Short/Long)
+       ═══════════════════════════════════════ */
+    .switch-group {
+      display: flex; flex-direction: column;
+      align-items: center; gap: 3px;
+    }
+    .switch-labels {
+      display: flex; gap: 18px;
+      font-size: 8px; color: var(--text-dim);
+      letter-spacing: 1px; font-weight: 700; text-transform: uppercase;
+    }
+    .switch-labels span.active { color: var(--text-cream); }
+    .toggle-switch {
+      width: 30px; height: 14px;
+      background: linear-gradient(180deg, #444 0%, #2a2a2a 100%);
+      border-radius: 3px; border: 1px solid #555;
+      position: relative; cursor: pointer;
+      box-shadow: inset 0 1px 2px rgba(0,0,0,0.4);
+      display: flex; align-items: center;
+    }
+    .toggle-thumb {
+      width: 13px; height: 10px;
+      background: linear-gradient(180deg, #ccc 0%, #999 50%, #aaa 100%);
+      border-radius: 2px;
+      position: absolute; left: 1px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.4), inset 0 1px 1px rgba(255,255,255,0.3);
+      transition: left 0.12s ease;
+    }
+    .toggle-switch.right .toggle-thumb { left: 14px; }
+
+    /* ═══════════════════════════════════════
+       WAVEFORM SELECTOR (6-position rotary)
+       ═══════════════════════════════════════ */
+    .waveform-group {
+      display: flex; flex-direction: column;
+      align-items: center; gap: 4px;
+    }
+    .waveform-selector {
+      width: 84px; height: 84px;
+      position: relative; cursor: pointer;
+    }
+    .waveform-ring {
+      position: absolute; inset: 0;
+      border-radius: 50%;
+    }
+    .waveform-icon {
+      position: absolute;
+      font-size: 10px; font-weight: 700;
+      color: var(--text-dim);
+      transform: translate(-50%, -50%);
+      transition: color 0.15s;
+      pointer-events: none;
+    }
+    .waveform-icon.active { color: var(--text-cream); }
+    .waveform-icon svg { width: 16px; height: 12px; }
+    .waveform-icon svg path { stroke: currentColor; fill: none; stroke-width: 1.5; }
+
+    .wf-knob {
+      position: absolute;
+      top: 10px; left: 10px; width: 64px; height: 64px;
+      border-radius: 50%;
+      background:
+        radial-gradient(ellipse 70% 50% at 50% 35%, rgba(255,255,255,0.06) 0%, transparent 70%),
+        radial-gradient(circle at 50% 45%, #383838 0%, #282828 40%, #1c1c1c 100%);
+      box-shadow:
+        0 2px 6px rgba(0,0,0,0.5), inset 0 1px 2px rgba(255,255,255,0.06),
+        inset 0 -2px 3px rgba(0,0,0,0.3);
+    }
+    .wf-pointer {
+      position: absolute; top: 5px; left: 50%;
+      width: 2px; height: 11px;
+      background: var(--text-cream); border-radius: 1px;
+      transform: translateX(-50%);
+      box-shadow: 0 0 2px rgba(212,207,196,0.2);
+    }
+    .wf-led {
+      position: absolute; bottom: -8px; left: 50%;
+      width: 5px; height: 5px; border-radius: 50%;
+      transform: translateX(-50%);
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+
+    /* ═══════════════════════════════════════
+       LED INDICATORS
+       ═══════════════════════════════════════ */
+    .led {
+      width: 10px; height: 10px; border-radius: 50%;
+      border: 1px solid rgba(255,255,255,0.08);
+      transition: all 0.1s;
+    }
+    .led.off { background: #222; }
+    .led.green { background: var(--led-green); box-shadow: 0 0 6px var(--led-green), 0 0 12px rgba(0,255,85,0.3); }
+    .led.red { background: var(--led-red); box-shadow: 0 0 6px var(--led-red), 0 0 12px rgba(255,34,34,0.3); }
+    .led.amber { background: var(--led-amber); box-shadow: 0 0 6px var(--led-amber), 0 0 12px rgba(255,170,0,0.3); }
+    .led.dim-green { background: var(--led-green-dim); box-shadow: none; }
+    .led.dim-red { background: var(--led-red-dim); box-shadow: none; }
+
+    .led-row {
+      display: flex; align-items: center; gap: 4px;
+    }
+    .led-text {
+      font-size: 7px; font-weight: 700; color: var(--text-dim);
+      letter-spacing: 1.5px; text-transform: uppercase;
+    }
+
+    /* Level meter */
+    .level-meter {
+      display: flex; flex-direction: column;
+      align-items: center; gap: 2px; margin: 4px 0;
+    }
+    .meter-seg {
+      width: 5px; height: 3px; border-radius: 1px;
+      background: #2a2a2a; transition: background 0.08s, box-shadow 0.08s;
+    }
+    .meter-seg.r { background: #cc2222; box-shadow: 0 0 3px rgba(204,34,34,0.4); }
+    .meter-seg.a { background: #ccaa00; box-shadow: 0 0 3px rgba(204,170,0,0.4); }
+    .meter-seg.g { background: #00cc44; box-shadow: 0 0 3px rgba(0,204,68,0.4); }
+
+    /* ═══════════════════════════════════════
+       DIVIDERS & SPACERS
+       ═══════════════════════════════════════ */
+    .vsep { height: 1px; width: 80%; background: linear-gradient(90deg, transparent, #3a3a3a, transparent); margin: 2px auto; }
+
+    /* ═══════════════════════════════════════
+       LED ROW (TIME / LEVEL / BYPASS)
+       ═══════════════════════════════════════ */
+    .indicator-row {
+      height: 34px;
+      display: flex; align-items: center; justify-content: space-around;
+      padding: 0 36px;
+      position: relative; z-index: 5;
+    }
+    .indicator-group {
+      display: flex; flex-direction: column; align-items: center; gap: 2px;
+    }
+    .indicator-label {
+      font-size: 8px; font-weight: 700; color: var(--text-dim);
+      letter-spacing: 1.5px; text-transform: uppercase;
+    }
+
+    /* ═══════════════════════════════════════
+       MOOG LOGO
+       ═══════════════════════════════════════ */
+    .logo-area {
+      height: 52px;
+      display: flex; align-items: center; justify-content: center;
+      position: relative; z-index: 5;
+    }
+    .moog-logo-text {
+      font-size: 32px; font-weight: 800;
+      color: var(--text-cream); letter-spacing: 6px;
+      text-transform: lowercase;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+    }
+
+    /* ═══════════════════════════════════════
+       FOOTSWITCH AREA
+       ═══════════════════════════════════════ */
+    .footswitch-area {
+      height: 120px;
+      background: linear-gradient(180deg, #1a1a1a 0%, #151515 100%);
+      border-top: 1px solid #2a2a2a;
+      display: flex; align-items: center; justify-content: space-around;
+      padding: 0 50px;
+      position: relative; z-index: 5;
+    }
+    .footswitch-group {
+      display: flex; flex-direction: column; align-items: center; gap: 6px;
+    }
+    .footswitch-label {
+      font-size: 9px; font-weight: 800; color: var(--text-cream);
+      letter-spacing: 2.5px; text-transform: uppercase;
+    }
+    .footswitch {
+      width: 54px; height: 54px; border-radius: 50%;
+      background: radial-gradient(circle at 40% 35%, #ddd 0%, #aaa 30%, #666 70%, #444 100%);
+      box-shadow: 0 3px 8px rgba(0,0,0,0.6), 0 1px 2px rgba(0,0,0,0.4),
+        inset 0 1px 2px rgba(255,255,255,0.25), inset 0 -1px 2px rgba(0,0,0,0.25);
+      cursor: pointer; position: relative;
+      transition: transform 0.08s, box-shadow 0.08s;
+    }
+    .footswitch:active {
+      transform: translateY(1px);
+      box-shadow: 0 1px 4px rgba(0,0,0,0.6), inset 0 1px 2px rgba(255,255,255,0.2), inset 0 -1px 2px rgba(0,0,0,0.3);
+    }
+    .footswitch-pad {
+      position: absolute; top: 6px; left: 6px; right: 6px; bottom: 6px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 45% 40%, #555 0%, #333 50%, #222 100%);
+      box-shadow: inset 0 1px 3px rgba(0,0,0,0.5);
+    }
+    .footswitch-led-ext {
+      width: 10px; height: 10px; border-radius: 50%;
+      border: 1px solid rgba(255,255,255,0.1);
+      transition: all 0.15s;
+    }
+
+    @keyframes led-flash {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+    .led-flashing {
+      animation: led-flash 0.5s ease-in-out infinite;
+    }
+
+    @keyframes glow-breathe {
+      0%, 100% { box-shadow: 0 0 8px var(--led-green), 0 0 16px rgba(0,255,85,0.3); }
+      50% { box-shadow: 0 0 12px var(--led-green), 0 0 24px rgba(0,255,85,0.45); }
+    }
+
+    /* ═══════════════════════════════════════
+       WAVEFORM EDITOR
+       ═══════════════════════════════════════ */
+    .waveform-editor {
+      background: linear-gradient(180deg, #141414 0%, #111 100%);
+      border-top: 1px solid #2a2a2a;
+      border-bottom: 1px solid #2a2a2a;
+      padding: 10px 14px 12px;
+      position: relative; z-index: 5;
+    }
+    .we-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 6px;
+    }
+    .we-title {
+      font-size: 10px; font-weight: 700; color: var(--text-cream);
+      letter-spacing: 2.5px; text-transform: uppercase;
+    }
+    .we-info {
+      display: flex; gap: 10px;
+    }
+    .we-info-item {
+      font-size: 8px; color: var(--text-dim); letter-spacing: 0.5px;
+    }
+    .we-info-item span { color: var(--led-green); font-weight: 600; }
+
+    /* Canvas container with markers overlay */
+    .we-canvas-wrap {
+      position: relative;
+      width: 100%; height: 140px;
+      background: #0c0c0c;
+      border: 1px solid #2a2a2a;
+      border-radius: 3px;
+      overflow: hidden;
+      cursor: crosshair;
+    }
+    .we-canvas-wrap canvas {
+      display: block;
+      width: 100%; height: 100%;
+    }
+
+    /* Empty state */
+    .we-empty {
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 10px; color: #333;
+      letter-spacing: 1.5px; text-transform: uppercase;
+      pointer-events: none;
+    }
+    .we-empty.hidden { display: none; }
+
+    /* Playhead */
+    .we-playhead {
+      position: absolute; top: 0; bottom: 0;
+      width: 1px; background: #fff;
+      opacity: 0.7; pointer-events: none;
+      left: 0; display: none;
+      z-index: 4;
+      box-shadow: 0 0 4px rgba(255,255,255,0.4);
+    }
+    .we-playhead.active { display: block; }
+
+    /* Draggable markers */
+    .we-marker {
+      position: absolute; top: 0; bottom: 0;
+      width: 3px; cursor: ew-resize;
+      z-index: 5;
+      transition: box-shadow 0.1s;
+    }
+    .we-marker::before {
+      content: '';
+      position: absolute; top: 0;
+      width: 0; height: 0;
+      border-left: 6px solid transparent;
+      border-right: 6px solid transparent;
+    }
+    .we-marker::after {
+      content: attr(data-label);
+      position: absolute; bottom: 2px;
+      font-size: 6px; font-weight: 700;
+      letter-spacing: 1px; text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    /* Start marker - green */
+    .we-marker.start {
+      background: var(--led-green);
+      box-shadow: 0 0 6px rgba(0,255,85,0.3);
+      left: 0;
+    }
+    .we-marker.start::before {
+      border-top: 8px solid var(--led-green);
+      left: -5px;
+    }
+    .we-marker.start::after {
+      color: var(--led-green); left: 6px;
+    }
+    .we-marker.start:hover, .we-marker.start.dragging {
+      box-shadow: 0 0 12px rgba(0,255,85,0.6);
+      width: 4px;
+    }
+
+    /* End marker - red */
+    .we-marker.end {
+      background: var(--led-red);
+      box-shadow: 0 0 6px rgba(255,34,34,0.3);
+      right: 0; left: auto;
+    }
+    .we-marker.end::before {
+      border-top: 8px solid var(--led-red);
+      right: -5px; left: auto;
+    }
+    .we-marker.end::after {
+      color: var(--led-red); right: 6px; left: auto;
+    }
+    .we-marker.end:hover, .we-marker.end.dragging {
+      box-shadow: 0 0 12px rgba(255,34,34,0.6);
+      width: 4px;
+    }
+
+    /* Hit point markers */
+    .we-hitpoint {
+      position: absolute; top: 0; bottom: 0;
+      width: 1px;
+      background: var(--led-amber);
+      opacity: 0.6;
+      pointer-events: none;
+      z-index: 3;
+    }
+    .we-hitpoint::before {
+      content: '';
+      position: absolute; top: 0;
+      left: -3px;
+      width: 0; height: 0;
+      border-left: 3px solid transparent;
+      border-right: 3px solid transparent;
+      border-top: 5px solid var(--led-amber);
+    }
+
+    /* Selection region shading */
+    .we-region-outside {
+      position: absolute; top: 0; bottom: 0;
+      background: rgba(0,0,0,0.5);
+      pointer-events: none; z-index: 2;
+    }
+    .we-region-left { left: 0; }
+    .we-region-right { right: 0; }
+
+    /* Threshold controls */
+    .we-controls {
+      display: flex; align-items: center; gap: 10px;
+      margin-top: 8px;
+    }
+    .we-threshold-group {
+      display: flex; align-items: center; gap: 6px; flex: 1;
+    }
+    .we-threshold-label {
+      font-size: 8px; font-weight: 700; color: var(--text-dim);
+      letter-spacing: 1.5px; text-transform: uppercase;
+      white-space: nowrap;
+    }
+    .we-threshold-slider {
+      -webkit-appearance: none;
+      appearance: none;
+      flex: 1; height: 4px;
+      background: linear-gradient(90deg, #2a2a2a, #3a3a3a);
+      border-radius: 2px;
+      outline: none;
+      cursor: pointer;
+    }
+    .we-threshold-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 12px; height: 12px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 40% 35%, #ddd 0%, #999 50%, #666 100%);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.5);
+      cursor: grab;
+    }
+    .we-threshold-slider::-webkit-slider-thumb:active {
+      cursor: grabbing;
+      background: radial-gradient(circle at 40% 35%, #eee 0%, #aaa 50%, #777 100%);
+    }
+    .we-threshold-value {
+      font-size: 8px; color: var(--led-amber); font-weight: 600;
+      min-width: 26px; text-align: right;
+    }
+    .we-hitcount {
+      font-size: 8px; color: var(--text-dim);
+      letter-spacing: 0.5px;
+      white-space: nowrap;
+    }
+    .we-hitcount span { color: var(--led-amber); font-weight: 600; }
+
+    /* Time readouts */
+    .we-time-row {
+      display: flex; justify-content: space-between;
+      margin-top: 5px;
+    }
+    .we-time-item {
+      font-size: 7px; color: var(--text-dim);
+      letter-spacing: 0.5px;
+    }
+    .we-time-item span {
+      font-weight: 600;
+    }
+    .we-time-item.start span { color: var(--led-green); }
+    .we-time-item.end span { color: var(--led-red); }
+    .we-time-item.dur span { color: var(--text-cream); }
+
+    /* ═══════════════════════════════════════
+       MIDI PANEL
+       ═══════════════════════════════════════ */
+    .midi-strip {
+      background: linear-gradient(180deg, #181818 0%, #141414 100%);
+      border-bottom: 1px solid #2a2a2a;
+      position: relative; z-index: 5;
+    }
+    .midi-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 5px 12px;
+      cursor: pointer;
+    }
+    .midi-header-left {
+      display: flex; align-items: center; gap: 8px;
+    }
+    .midi-toggle-btn {
+      background: none; border: 1px solid #3a3a3a;
+      color: var(--text-dim); font-size: 9px; font-weight: 700;
+      letter-spacing: 2px; text-transform: uppercase;
+      padding: 3px 10px; border-radius: 3px;
+      cursor: pointer; transition: all 0.15s;
+      display: flex; align-items: center; gap: 5px;
+    }
+    .midi-toggle-btn:hover { border-color: #555; color: var(--text-cream); }
+    .midi-toggle-btn.active { border-color: var(--led-green); color: var(--led-green); }
+    .midi-toggle-btn .midi-icon {
+      width: 14px; height: 10px; position: relative;
+    }
+    /* 5-pin DIN icon */
+    .midi-toggle-btn .midi-icon::before {
+      content: '';
+      position: absolute; inset: 0;
+      border: 1.5px solid currentColor;
+      border-radius: 50% 50% 0 0 / 100% 100% 0 0;
+      border-bottom: none;
+    }
+    .midi-toggle-btn .midi-icon::after {
+      content: '•••';
+      position: absolute; bottom: 0; left: 0; right: 0;
+      text-align: center; font-size: 5px; line-height: 5px;
+      letter-spacing: 1px;
+    }
+    .midi-status-dots {
+      display: flex; gap: 3px; align-items: center;
+    }
+    .midi-dot {
+      width: 5px; height: 5px; border-radius: 50%;
+      background: #2a2a2a; transition: all 0.08s;
+    }
+    .midi-dot.in-active { background: var(--led-green); box-shadow: 0 0 4px rgba(0,255,85,0.4); }
+    .midi-dot.out-active { background: var(--led-amber); box-shadow: 0 0 4px rgba(255,170,0,0.4); }
+    .midi-dot.clock-active { background: #ff55ff; box-shadow: 0 0 4px rgba(255,85,255,0.4); }
+    .midi-dot-label {
+      font-size: 6px; color: var(--text-dim); letter-spacing: 0.5px;
+      font-weight: 600; text-transform: uppercase;
+    }
+    .midi-device-count {
+      font-size: 8px; color: var(--text-dim); letter-spacing: 0.5px;
+    }
+    .midi-device-count span { color: var(--led-green); font-weight: 600; }
+
+    /* Collapsible panel */
+    .midi-panel {
+      max-height: 0; overflow: hidden;
+      transition: max-height 0.3s ease, padding 0.3s ease;
+      padding: 0 12px;
+    }
+    .midi-panel.open {
+      max-height: 400px;
+      padding: 8px 12px 10px;
+    }
+
+    .midi-row {
+      display: flex; align-items: center; gap: 8px;
+      margin-bottom: 6px;
+    }
+    .midi-row-label {
+      font-size: 8px; font-weight: 700; color: var(--text-dim);
+      letter-spacing: 1.5px; text-transform: uppercase;
+      min-width: 52px; white-space: nowrap;
+    }
+
+    .midi-device-select {
+      flex: 1;
+      background: #1a1a1a; border: 1px solid #3a3a3a;
+      color: var(--text-cream); font-size: 8px;
+      padding: 4px 6px; border-radius: 3px;
+      font-family: inherit; letter-spacing: 0.3px;
+      cursor: pointer; outline: none;
+      -webkit-appearance: none;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M0 0l4 5 4-5z' fill='%237a756a'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 6px center;
+      padding-right: 18px;
+    }
+    .midi-device-select:focus { border-color: var(--led-green); }
+    .midi-device-select option { background: #1a1a1a; color: var(--text-cream); }
+
+    .midi-ch-select {
+      width: 44px;
+      background: #1a1a1a; border: 1px solid #3a3a3a;
+      color: var(--text-cream); font-size: 8px;
+      padding: 4px 4px; border-radius: 3px;
+      font-family: inherit; text-align: center;
+      cursor: pointer; outline: none;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+    .midi-ch-select:focus { border-color: var(--led-green); }
+
+    /* MIDI action buttons */
+    .midi-btn-row {
+      display: flex; gap: 6px; margin-top: 4px; flex-wrap: wrap;
+    }
+    .midi-action-btn {
+      background: linear-gradient(180deg, #2a2a2a 0%, #1e1e1e 100%);
+      border: 1px solid #3a3a3a;
+      color: var(--text-dim); font-size: 7px; font-weight: 700;
+      letter-spacing: 1.5px; text-transform: uppercase;
+      padding: 4px 8px; border-radius: 3px;
+      cursor: pointer; transition: all 0.12s;
+      white-space: nowrap;
+    }
+    .midi-action-btn:hover { border-color: #555; color: var(--text-cream); }
+    .midi-action-btn.active {
+      border-color: var(--led-amber); color: var(--led-amber);
+      box-shadow: 0 0 6px rgba(255,170,0,0.15);
+    }
+    .midi-action-btn.active-green {
+      border-color: var(--led-green); color: var(--led-green);
+      box-shadow: 0 0 6px rgba(0,255,85,0.15);
+    }
+    .midi-action-btn.active-pink {
+      border-color: #ff55ff; color: #ff55ff;
+      box-shadow: 0 0 6px rgba(255,85,255,0.15);
+    }
+
+    /* MIDI CC map display */
+    .midi-cc-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      gap: 3px; margin-top: 6px;
+    }
+    .midi-cc-item {
+      background: #141414; border: 1px solid #2a2a2a;
+      border-radius: 2px; padding: 3px 5px;
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 7px; transition: border-color 0.15s;
+    }
+    .midi-cc-item.learning {
+      border-color: var(--led-amber);
+      animation: cc-pulse 0.8s ease-in-out infinite;
+    }
+    .midi-cc-item.active-cc {
+      border-color: var(--led-green);
+    }
+    @keyframes cc-pulse {
+      0%,100% { border-color: var(--led-amber); }
+      50% { border-color: var(--led-amber-dim); }
+    }
+    .midi-cc-param {
+      color: var(--text-dim); font-weight: 600;
+      letter-spacing: 0.5px; text-transform: uppercase;
+    }
+    .midi-cc-num {
+      color: var(--text-cream); font-weight: 700;
+      min-width: 18px; text-align: right;
+    }
+
+    /* MIDI activity log */
+    .midi-log {
+      margin-top: 6px;
+      height: 32px; overflow-y: auto;
+      background: #0c0c0c; border: 1px solid #222;
+      border-radius: 2px; padding: 3px 5px;
+      font-family: 'SF Mono', 'Menlo', monospace;
+      font-size: 7px; color: var(--text-dim);
+      line-height: 1.6;
+    }
+    .midi-log .msg-in { color: var(--led-green); }
+    .midi-log .msg-clock { color: #ff55ff; }
+    .midi-log .msg-note { color: var(--led-amber); }
+
+    .clock-status-row {
+      margin-top: 4px;
+      display: grid;
+      grid-template-columns: auto auto 1fr;
+      gap: 6px;
+      align-items: center;
+      font-size: 8px;
+    }
+    .clock-bpm-pill, .clock-confidence-pill {
+      border: 1px solid #2f2f2f;
+      background: #111;
+      border-radius: 2px;
+      padding: 3px 6px;
+      color: var(--text-cream);
+      font-weight: 700;
+      letter-spacing: 0.4px;
+      min-width: 74px;
+      text-align: center;
+    }
+    .clock-confidence-pill.low { color: #ff9090; border-color: #6a2a2a; }
+    .clock-confidence-pill.mid { color: #ffd780; border-color: #6a5a2a; }
+    .clock-confidence-pill.high { color: var(--led-green); border-color: #2a6a3a; }
+    .sync-quant-select {
+      background: #141414;
+      border: 1px solid #2f2f2f;
+      border-radius: 2px;
+      color: var(--text-cream);
+      font-size: 8px;
+      padding: 3px 5px;
+      width: 100%;
+    }
+
+    .preset-row {
+      margin-top: 6px;
+      display: grid;
+      grid-template-columns: 1fr auto auto;
+      gap: 4px;
+      align-items: center;
+    }
+    .preset-name-input {
+      background: #141414;
+      border: 1px solid #2f2f2f;
+      border-radius: 2px;
+      color: var(--text-cream);
+      font-size: 8px;
+      padding: 4px 6px;
+      min-width: 0;
+    }
+    .preset-name-input:focus { outline: none; border-color: var(--led-green); }
+    .preset-select {
+      margin-top: 4px;
+      width: 100%;
+      background: #141414;
+      border: 1px solid #2f2f2f;
+      border-radius: 2px;
+      color: var(--text-cream);
+      font-size: 8px;
+      padding: 4px 6px;
+    }
+    .preset-btn {
+      background: #1a1a1a;
+      border: 1px solid #3a3a3a;
+      color: var(--text-label);
+      border-radius: 2px;
+      font-size: 7px;
+      font-weight: 700;
+      letter-spacing: 0.4px;
+      padding: 4px 6px;
+      text-transform: uppercase;
+      cursor: pointer;
+    }
+    .preset-btn:hover { border-color: #5a5a5a; color: var(--text-cream); }
+    .ab-row { margin-top: 4px; display: flex; gap: 4px; }
+    .preset-btn.active-ab { border-color: var(--led-green); color: var(--led-green); }
+
+    /* ═══════════════════════════════════════
+       RESPONSIVE
+       ═══════════════════════════════════════ */
+    @media (max-height: 1460px) {
+      .pedal-container { transform: scale(0.88); transform-origin: top center; margin-top: 4px; }
+    }
+    @media (max-height: 1280px) {
+      .pedal-container { transform: scale(0.76); transform-origin: top center; margin-top: 0; }
+    }
+    @media (max-height: 1060px) {
+      .pedal-container { transform: scale(0.65); transform-origin: top center; margin-top: 0; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="pedal-container">
+  <!-- WOOD PANELS -->
+  <div class="wood-panel wood-panel-left">
+    <div class="wood-groove" style="top:12%"></div>
+    <div class="wood-groove" style="top:35%"></div>
+    <div class="wood-groove" style="top:58%"></div>
+    <div class="wood-groove" style="top:81%"></div>
+  </div>
+
+  <div class="faceplate">
+    <div class="screw screw-tl"></div>
+    <div class="screw screw-tr"></div>
+    <div class="screw screw-bl"></div>
+    <div class="screw screw-br"></div>
+
+    <!-- HEADER -->
+    <div class="top-header">
+      <span class="brand-text">moogerfooger</span>
+      <div class="model-info">
+        <div class="model-number">MF-104M</div>
+        <div class="model-sub">Analog Delay</div>
+      </div>
+    </div>
+
+    <!-- SAMPLE LOADER -->
+    <div class="sample-bar">
+      <button class="sample-load-btn" id="loadSampleBtn">Load Sample</button>
+      <button class="sample-load-btn" id="ioModeBtn">Mode: Sample</button>
+      <select class="io-select" id="audioInputSelect" title="Audio input device">
+        <option value="">Input: Default</option>
+      </select>
+      <select class="io-select" id="audioOutputSelect" title="Audio output device">
+        <option value="">Output: System</option>
+      </select>
+      <span class="sample-name" id="sampleName">No sample loaded</span>
+      <input class="io-gain" id="ioInputGain" type="range" min="0" max="2" step="0.01" value="1" title="Live input gain" />
+      <input class="io-blend" id="ioBlend" type="range" min="0" max="1" step="0.01" value="1" title="Input blend: sample to live" />
+      <span class="io-status" id="ioStatus">I/O idle</span>
+      <span class="io-latency" id="ioLatency">Latency --</span>
+      <button class="sample-play-btn" id="playSampleBtn" title="Play">
+        <div class="transport-icon"></div>
+      </button>
+      <button class="sample-stop-btn" id="stopSampleBtn" title="Stop">
+        <div class="stop-icon"></div>
+      </button>
+      <button class="sample-rec-btn" id="recordBtn" title="Record output">
+        <div class="rec-icon"></div>
+      </button>
+    </div>
+
+    <!-- JACK STRIP -->
+    <div class="jack-strip">
+      <div class="jack"><div class="jack-hole"></div><span class="jack-label">Audio In</span></div>
+      <div class="jack"><div class="jack-hole"></div><span class="jack-label">Feedback</span></div>
+      <div class="jack"><div class="jack-hole"></div><span class="jack-label">Time</span></div>
+      <div class="jack"><div class="jack-hole"></div><span class="jack-label">LFO Rate</span></div>
+      <div class="jack"><div class="jack-hole"></div><span class="jack-label">Mix</span></div>
+      <div class="jack"><div class="jack-hole"></div><span class="jack-label">MIDI In</span></div>
+    </div>
+
+    <!-- ═══ MIDI PANEL ═══ -->
+    <div class="midi-strip" id="midiStrip">
+      <!-- Compact header bar (always visible) -->
+      <div class="midi-header" id="midiHeader">
+        <div class="midi-header-left">
+          <button class="midi-toggle-btn" id="midiToggleBtn">
+            <div class="midi-icon"></div>
+            <span>MIDI</span>
+          </button>
+          <div class="midi-status-dots">
+            <div class="midi-dot" id="midiDotIn" title="Input"></div>
+            <span class="midi-dot-label">In</span>
+            <div class="midi-dot" id="midiDotOut" title="Output"></div>
+            <span class="midi-dot-label">Out</span>
+            <div class="midi-dot" id="midiDotClock" title="Clock"></div>
+            <span class="midi-dot-label">Clk</span>
+          </div>
+        </div>
+        <span class="midi-device-count" id="midiDeviceCount"><span>0</span> devices</span>
+      </div>
+
+      <!-- Collapsible detail panel -->
+      <div class="midi-panel" id="midiPanel">
+        <!-- Input device -->
+        <div class="midi-row">
+          <span class="midi-row-label">Input</span>
+          <select class="midi-device-select" id="midiInputSelect">
+            <option value="">— No MIDI Input —</option>
+          </select>
+        </div>
+
+        <!-- Output device -->
+        <div class="midi-row">
+          <span class="midi-row-label">Output</span>
+          <select class="midi-device-select" id="midiOutputSelect">
+            <option value="">— No MIDI Output —</option>
+          </select>
+        </div>
+
+        <!-- Channel -->
+        <div class="midi-row">
+          <span class="midi-row-label">Channel</span>
+          <select class="midi-ch-select" id="midiChannelSelect">
+            <option value="0">1</option><option value="1">2</option>
+            <option value="2">3</option><option value="3">4</option>
+            <option value="4">5</option><option value="5">6</option>
+            <option value="6">7</option><option value="7">8</option>
+            <option value="8">9</option><option value="9">10</option>
+            <option value="10">11</option><option value="11">12</option>
+            <option value="12">13</option><option value="13">14</option>
+            <option value="14">15</option><option value="15">16</option>
+          </select>
+          <span style="font-size:7px;color:var(--text-dim);letter-spacing:0.5px;margin-left:4px;">Omni:</span>
+          <button class="midi-action-btn" id="midiOmniBtn" title="Receive on all channels">Off</button>
+        </div>
+
+        <!-- Action buttons -->
+        <div class="midi-btn-row">
+          <button class="midi-action-btn" id="midiLearnBtn">CC Learn</button>
+          <button class="midi-action-btn" id="midiClockSyncBtn">Clock Sync</button>
+          <button class="midi-action-btn" id="midiNoteModeBtn">Note Mode: Off</button>
+          <button class="midi-action-btn" id="midiPanicBtn">Panic</button>
+        </div>
+
+        <div class="clock-status-row">
+          <span class="clock-bpm-pill" id="midiClockBpm">BPM --</span>
+          <span class="clock-confidence-pill" id="midiClockConfidence">Conf --</span>
+          <select class="sync-quant-select" id="midiTimeQuantSelect" title="Time sync quantization">
+            <option value="4">1/1</option>
+            <option value="2">1/2</option>
+            <option value="1" selected>1/4</option>
+            <option value="0.75">1/4 Dotted</option>
+            <option value="0.5">1/8</option>
+            <option value="0.333333">1/8 Triplet</option>
+            <option value="0.25">1/16</option>
+            <option value="0.166667">1/16 Triplet</option>
+            <option value="0.125">1/32</option>
+          </select>
+        </div>
+
+        <div class="preset-row">
+          <input class="preset-name-input" id="presetNameInput" placeholder="Preset name" maxlength="48" />
+          <button class="preset-btn" id="presetSaveBtn">Save</button>
+          <button class="preset-btn" id="presetDeleteBtn">Delete</button>
+        </div>
+        <select class="preset-select" id="presetSelect">
+          <option value="">— No Presets —</option>
+        </select>
+        <div class="midi-btn-row">
+          <button class="preset-btn" id="presetLoadBtn">Load</button>
+          <button class="preset-btn" id="presetExportBtn">Export</button>
+          <button class="preset-btn" id="presetImportBtn">Import</button>
+        </div>
+        <div class="ab-row">
+          <button class="preset-btn active-ab" id="presetABtn">A</button>
+          <button class="preset-btn" id="presetBBtn">B</button>
+          <button class="preset-btn" id="presetCopyAToBBtn">A→B</button>
+          <button class="preset-btn" id="presetCopyBToABtn">B→A</button>
+        </div>
+
+        <!-- CC Map -->
+        <div class="midi-cc-grid" id="midiCCGrid">
+          <div class="midi-cc-item" data-cc-param="output"><span class="midi-cc-param">Output</span><span class="midi-cc-num">CC7</span></div>
+          <div class="midi-cc-item" data-cc-param="time"><span class="midi-cc-param">Time</span><span class="midi-cc-num">CC12</span></div>
+          <div class="midi-cc-item" data-cc-param="feedback"><span class="midi-cc-param">Feedbk</span><span class="midi-cc-num">CC13</span></div>
+          <div class="midi-cc-item" data-cc-param="mix"><span class="midi-cc-param">Mix</span><span class="midi-cc-num">CC14</span></div>
+          <div class="midi-cc-item" data-cc-param="lfoRate"><span class="midi-cc-param">Rate</span><span class="midi-cc-num">CC15</span></div>
+          <div class="midi-cc-item" data-cc-param="lfoAmount"><span class="midi-cc-param">Amount</span><span class="midi-cc-num">CC16</span></div>
+          <div class="midi-cc-item" data-cc-param="lfoWaveform"><span class="midi-cc-param">LFO WF</span><span class="midi-cc-num">CC102</span></div>
+          <div class="midi-cc-item" data-cc-param="range"><span class="midi-cc-param">Range</span><span class="midi-cc-num">CC86</span></div>
+          <div class="midi-cc-item" data-cc-param="bypass"><span class="midi-cc-param">Bypass</span><span class="midi-cc-num">CC80</span></div>
+        </div>
+
+        <!-- Activity log -->
+        <div class="midi-log" id="midiLog"></div>
+      </div>
+    </div>
+
+    <!-- ═══ 3-COLUMN CONTROLS ═══ -->
+    <div class="controls-area">
+
+      <!-- ── LEFT: DELAY ── -->
+      <div class="col-delay">
+        <div class="section-label">Delay</div>
+
+        <!-- TIME knob (large) -->
+        <div class="knob-group large" id="knob-time" data-param="time" data-min="0" data-max="1" data-value="0.3">
+          <div class="knob-label">Time</div>
+          <div class="knob-wrapper">
+            <div class="knob-scale"></div>
+            <div class="knob"><div class="knob-pointer"></div><div class="knob-cap"></div></div>
+          </div>
+          <div class="knob-value">.3</div>
+        </div>
+
+        <!-- SHORT / LONG switch -->
+        <div class="switch-group" style="margin: 6px 0;">
+          <div class="switch-labels">
+            <span class="active" id="lbl-short">Short</span>
+            <span id="lbl-long">Long</span>
+          </div>
+          <div class="toggle-switch" id="rangeSwitch" data-state="short">
+            <div class="toggle-thumb"></div>
+          </div>
+        </div>
+
+        <!-- FEEDBACK knob -->
+        <div class="knob-group" id="knob-feedback" data-param="feedback" data-min="0" data-max="10" data-value="3">
+          <div class="knob-label">Feedback</div>
+          <div class="knob-wrapper">
+            <div class="knob-scale"></div>
+            <div class="knob"><div class="knob-pointer"></div><div class="knob-cap"></div></div>
+          </div>
+          <div class="knob-value">3.0</div>
+        </div>
+      </div>
+
+      <!-- ── CENTER: DRIVE / OUTPUT / MIX ── -->
+      <div class="col-center">
+        <!-- DRIVE -->
+        <div class="knob-group small" id="knob-drive" data-param="drive" data-min="0" data-max="10" data-value="5">
+          <div class="knob-label">Drive</div>
+          <div class="knob-wrapper">
+            <div class="knob-scale"></div>
+            <div class="knob"><div class="knob-pointer"></div><div class="knob-cap"></div></div>
+          </div>
+        </div>
+
+        <!-- OUTPUT LEVEL -->
+        <div class="knob-group small" id="knob-output" data-param="output" data-min="0" data-max="10" data-value="5">
+          <div class="knob-label" style="font-size:7px;">Output<br>Level</div>
+          <div class="knob-wrapper">
+            <div class="knob-scale"></div>
+            <div class="knob"><div class="knob-pointer"></div><div class="knob-cap"></div></div>
+          </div>
+        </div>
+
+        <!-- LEVEL METER -->
+        <div class="level-meter" id="levelMeter">
+          <div class="meter-seg" data-i="7"></div>
+          <div class="meter-seg" data-i="6"></div>
+          <div class="meter-seg" data-i="5"></div>
+          <div class="meter-seg" data-i="4"></div>
+          <div class="meter-seg" data-i="3"></div>
+          <div class="meter-seg" data-i="2"></div>
+          <div class="meter-seg" data-i="1"></div>
+          <div class="meter-seg" data-i="0"></div>
+        </div>
+
+        <!-- MIX -->
+        <div class="knob-group small" id="knob-mix" data-param="mix" data-min="0" data-max="10" data-value="5">
+          <div class="knob-label">Mix</div>
+          <div class="knob-wrapper">
+            <div class="knob-scale"></div>
+            <div class="knob"><div class="knob-pointer"></div><div class="knob-cap"></div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── RIGHT: LFO ── -->
+      <div class="col-lfo">
+        <div class="section-label">LFO</div>
+
+        <!-- WAVEFORM SELECTOR -->
+        <div class="waveform-group">
+          <div class="waveform-selector" id="waveformSelector">
+            <div class="waveform-ring">
+              <!-- 6 icons positioned around the ring -->
+              <div class="waveform-icon active" data-wf="sine" style="left:15%;top:22%;">
+                <svg viewBox="0 0 16 12"><path d="M1 6 C3 2, 5 2, 8 6 C11 10, 13 10, 15 6"/></svg>
+              </div>
+              <div class="waveform-icon" data-wf="triangle" style="left:85%;top:22%;">
+                <svg viewBox="0 0 16 12"><path d="M1 10 L5 2 L9 10 L13 2 L15 6"/></svg>
+              </div>
+              <div class="waveform-icon" data-wf="square" style="right:-2px;top:50%;">
+                <svg viewBox="0 0 16 12"><path d="M1 10 V2 H5 V10 H9 V2 H13 V10 H15"/></svg>
+              </div>
+              <div class="waveform-icon" data-wf="sawtooth" style="left:85%;bottom:14%;">
+                <svg viewBox="0 0 16 12"><path d="M1 10 L7 2 V10 L13 2 V10 H15"/></svg>
+              </div>
+              <div class="waveform-icon" data-wf="ramp" style="left:15%;bottom:14%;">
+                <svg viewBox="0 0 16 12"><path d="M1 2 L7 10 V2 L13 10 V2"/></svg>
+              </div>
+              <div class="waveform-icon" data-wf="samplehold" style="left:-2px;top:50%;">
+                <svg viewBox="0 0 16 12"><path d="M1 8 H4 V3 H7 V9 H10 V5 H13 V7 H15"/></svg>
+              </div>
+            </div>
+            <div class="wf-knob" id="wfKnob">
+              <div class="wf-pointer"></div>
+            </div>
+          </div>
+          <div class="wf-led led dim-red" id="lfoLed"></div>
+        </div>
+
+        <!-- RATE -->
+        <div class="knob-group" id="knob-lfoRate" data-param="lfoRate" data-min="0.05" data-max="50" data-value="0.8" data-log="true">
+          <div class="knob-label">Rate</div>
+          <div class="knob-wrapper">
+            <div class="knob-scale"></div>
+            <div class="knob"><div class="knob-pointer"></div><div class="knob-cap"></div></div>
+          </div>
+          <div class="knob-value">0.8 Hz</div>
+        </div>
+
+        <!-- AMOUNT -->
+        <div class="knob-group" id="knob-lfoAmount" data-param="lfoAmount" data-min="0" data-max="10" data-value="0">
+          <div class="knob-label">Amount</div>
+          <div class="knob-wrapper">
+            <div class="knob-scale"></div>
+            <div class="knob"><div class="knob-pointer"></div><div class="knob-cap"></div></div>
+          </div>
+          <div class="knob-value">0.0</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ WAVEFORM EDITOR ═══ -->
+    <div class="waveform-editor" id="waveformEditor">
+      <div class="we-header">
+        <span class="we-title">Waveform</span>
+        <div class="we-info">
+          <span class="we-info-item" id="weSampleRate"></span>
+          <span class="we-info-item" id="weDuration"></span>
+        </div>
+      </div>
+
+      <div class="we-canvas-wrap" id="weCanvasWrap">
+        <canvas id="weCanvas"></canvas>
+        <div class="we-empty" id="weEmpty">Load a sample to display waveform</div>
+
+        <!-- Playhead -->
+        <div class="we-playhead" id="wePlayhead"></div>
+
+        <!-- Outside-selection shading -->
+        <div class="we-region-outside we-region-left" id="weRegionLeft" style="width:0"></div>
+        <div class="we-region-outside we-region-right" id="weRegionRight" style="width:0"></div>
+
+        <!-- Hit point container (populated by JS) -->
+        <div id="weHitpoints"></div>
+
+        <!-- Start / End markers -->
+        <div class="we-marker start" id="weMarkerStart" data-label="IN"></div>
+        <div class="we-marker end" id="weMarkerEnd" data-label="OUT"></div>
+      </div>
+
+      <!-- Threshold slider + hit count -->
+      <div class="we-controls">
+        <div class="we-threshold-group">
+          <span class="we-threshold-label">Threshold</span>
+          <input type="range" class="we-threshold-slider" id="weThreshold"
+                 min="0" max="100" value="40" step="1">
+          <span class="we-threshold-value" id="weThresholdVal">40%</span>
+        </div>
+        <span class="we-hitcount">Hits: <span id="weHitCount">0</span></span>
+      </div>
+
+      <!-- Time readouts -->
+      <div class="we-time-row">
+        <span class="we-time-item start">In: <span id="weTimeStart">0.000s</span></span>
+        <span class="we-time-item dur">Sel: <span id="weTimeDur">0.000s</span></span>
+        <span class="we-time-item end">Out: <span id="weTimeEnd">0.000s</span></span>
+      </div>
+    </div>
+
+    <!-- LED INDICATOR ROW -->
+    <div class="indicator-row">
+      <div class="indicator-group">
+        <div class="led dim-red" id="timeLed"></div>
+        <span class="indicator-label">Time</span>
+      </div>
+      <div class="indicator-group">
+        <div class="led dim-green" id="levelLed"></div>
+        <span class="indicator-label">Level</span>
+      </div>
+      <div class="indicator-group">
+        <div class="led red" id="bypassLed"></div>
+        <span class="indicator-label">Bypass</span>
+      </div>
+    </div>
+
+    <!-- LOGO -->
+    <div class="logo-area">
+      <span class="moog-logo-text">moog</span>
+    </div>
+
+    <!-- FOOTSWITCHES -->
+    <div class="footswitch-area">
+      <div class="footswitch-group">
+        <div class="footswitch-label">Tap Tempo</div>
+        <div class="footswitch" id="tapTempoBtn">
+          <div class="footswitch-pad"></div>
+        </div>
+      </div>
+      <div class="footswitch-group">
+        <div class="footswitch-label">Bypass</div>
+        <div class="footswitch" id="bypassBtn">
+          <div class="footswitch-pad"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="wood-panel wood-panel-right">
+    <div class="wood-groove" style="top:12%"></div>
+    <div class="wood-groove" style="top:35%"></div>
+    <div class="wood-groove" style="top:58%"></div>
+    <div class="wood-groove" style="top:81%"></div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+// AUDIO ENGINE — BBD Analog Delay with LFO & Sample Loader
+// ═══════════════════════════════════════════════════════
+
+class AnalogDelayEngine {
+  constructor() {
+    this.ctx = null;
+    this.initialized = false;
+    this.bypassed = true;         // starts OFF (red)
+    this.spilloverMode = false;
+    this.sampleBuffer = null;
+    this.sampleSource = null;
+    this.samplePlaying = false;
+    this.liveInputStream = null;
+    this.liveInputSource = null;
+    this.inputMode = 'sample'; // sample | live
+    this.inputDeviceId = '';
+    this.outputDeviceId = '';
+    this.liveInputGain = 1;
+    this.inputBlend = 1; // 0 sample only, 1 live only
+    this.recordingDestination = null;
+    this.mediaRecorder = null;
+    this.recordChunks = [];
+
+    // Params from manual
+    this.params = {
+      time: 0.3,        // 0-1 normalized, maps to ms based on range
+      feedback: 3,       // 0-10
+      drive: 5,          // 0-10
+      output: 5,         // 0-10
+      mix: 5,            // 0-10
+      lfoRate: 0.8,      // Hz
+      lfoAmount: 0,      // 0-10
+      lfoWaveform: 'sine',
+      range: 'short'     // short or long
+    };
+
+    // Tap tempo
+    this.tapTimes = [];
+    this.tapTarget = 'time'; // or 'lfo'
+    this.tapHoldTimer = null;
+  }
+
+  async init() {
+    if (this.initialized) return;
+    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+
+    // ── Signal Chain ──
+    // Input → Drive (WaveShaperNode) → Delay → Feedback loop
+    // Dry/Wet mix → Output Gain → Destination
+
+    // Input gain (drive) — 35dB range
+    this.inputGain = this.ctx.createGain();
+    this.inputGain.gain.value = 1;
+
+    // Live/sample trim (pre-drive)
+    this.liveInputGainNode = this.ctx.createGain();
+    this.sampleInputGainNode = this.ctx.createGain();
+    this.inputBlendSumNode = this.ctx.createGain();
+    this.liveInputGainNode.gain.value = this.liveInputGain;
+    this._updateInputBlend();
+
+    // Drive saturation (waveshaper for analog warmth)
+    this.driveShaper = this.ctx.createWaveShaper();
+    this.driveShaper.oversample = '4x';
+    this._updateDriveCurve();
+
+    // Pre-delay gain
+    this.preDelayGain = this.ctx.createGain();
+    this.preDelayGain.gain.value = 1;
+
+    // BBD Delay Line
+    this.delayNodeL = this.ctx.createDelay(2.0); // max 2s for multiplied times
+    this.delayNodeR = this.ctx.createDelay(2.0);
+
+    // Feedback path
+    this.feedbackGainL = this.ctx.createGain();
+    this.feedbackGainR = this.ctx.createGain();
+
+    // BBD anti-alias filter (analog character — darkens with longer delays)
+    this.bbdFilterL = this.ctx.createBiquadFilter();
+    this.bbdFilterR = this.ctx.createBiquadFilter();
+    this.bbdFilterL.type = 'lowpass';
+    this.bbdFilterR.type = 'lowpass';
+
+    // Stereo routing and modulation phase split
+    this.stereoSplitter = this.ctx.createChannelSplitter(2);
+    this.stereoMerger = this.ctx.createChannelMerger(2);
+    this.preDelayGain.connect(this.stereoSplitter);
+
+    // LFO (modulates delay time) — must be created before _updateDelayTime
+    this.lfoNode = this.ctx.createOscillator();
+    this.lfoNode.type = 'sine';
+    this.lfoNode.frequency.value = this.params.lfoRate;
+    this.lfoGain = this.ctx.createGain();
+    this.lfoGainInv = this.ctx.createGain();
+    this.lfoGain.gain.value = 0; // amount=0 initially
+    this.lfoGainInv.gain.value = 0;
+    this.lfoNode.connect(this.lfoGain);
+    this.lfoNode.connect(this.lfoGainInv);
+    this.lfoGain.connect(this.delayNodeL.delayTime);
+    this.lfoGainInv.connect(this.delayNodeR.delayTime);
+    this.lfoNode.start();
+
+    // Wet/Dry mixing
+    this.dryGainL = this.ctx.createGain();
+    this.dryGainR = this.ctx.createGain();
+    this.wetGainL = this.ctx.createGain();
+    this.wetGainR = this.ctx.createGain();
+
+    // Output level
+    this.outputGainL = this.ctx.createGain();
+    this.outputGainR = this.ctx.createGain();
+
+    // Master out
+    this.masterGain = this.ctx.createGain();
+    this.masterGain.gain.value = 1;
+
+    // Analyser for level meter
+    this.analyser = this.ctx.createAnalyser();
+    this.analyser.fftSize = 256;
+    this.analyserData = new Uint8Array(this.analyser.frequencyBinCount);
+
+    // ── Now safe to call update methods (all nodes exist) ──
+    this._updateDelayTime();
+    this._updateFeedback();
+    this._updateBBDFilter();
+    this._updateMix();
+    this._updateOutputLevel();
+
+    // ── Wire it up ──
+    // Input → Drive → PreDelay
+    this.inputBlendSumNode.connect(this.inputGain);
+    this.inputGain.connect(this.driveShaper);
+    this.driveShaper.connect(this.preDelayGain);
+
+    // Split mono input into dual stereo lanes
+    this.stereoSplitter.connect(this.dryGainL, 0);
+    this.stereoSplitter.connect(this.dryGainR, 0);
+    this.stereoSplitter.connect(this.delayNodeL, 0);
+    this.stereoSplitter.connect(this.delayNodeR, 0);
+
+    // Dry lanes
+    this.dryGainL.connect(this.outputGainL);
+    this.dryGainR.connect(this.outputGainR);
+
+    // Wet lanes
+    this.delayNodeL.connect(this.bbdFilterL);
+    this.delayNodeR.connect(this.bbdFilterR);
+    this.bbdFilterL.connect(this.wetGainL);
+    this.bbdFilterR.connect(this.wetGainR);
+    this.wetGainL.connect(this.outputGainL);
+    this.wetGainR.connect(this.outputGainR);
+
+    // Cross-feedback for stereo movement
+    this.bbdFilterL.connect(this.feedbackGainR);
+    this.bbdFilterR.connect(this.feedbackGainL);
+    this.feedbackGainL.connect(this.delayNodeL);
+    this.feedbackGainR.connect(this.delayNodeR);
+
+    // Merge stereo output → analyser → master → destination
+    this.outputGainL.connect(this.stereoMerger, 0, 0);
+    this.outputGainR.connect(this.stereoMerger, 0, 1);
+    this.stereoMerger.connect(this.analyser);
+    this.analyser.connect(this.masterGain);
+    this.masterGain.connect(this.ctx.destination);
+
+    // Recording tap (post effects, pre-master)
+    this.recordingDestination = this.ctx.createMediaStreamDestination();
+    this.stereoMerger.connect(this.recordingDestination);
+
+    // Start muted (bypassed)
+    this.masterGain.gain.value = 0;
+
+    this.initialized = true;
+    this._startMeter();
+    this._startLFOLed();
+    this._startTimeLed();
+  }
+
+  // ── DRIVE: Analog saturation curve ──
+  _updateDriveCurve() {
+    const driveNorm = this.params.drive / 10;
+    // 35dB range: gain from ~0.05 to ~56
+    const gainDb = -26 + driveNorm * 35;
+    const gainLinear = Math.pow(10, gainDb / 20);
+    if (this.inputGain) this.inputGain.gain.setTargetAtTime(gainLinear, this.ctx?.currentTime || 0, 0.01);
+
+    // Waveshaper curve for analog warmth
+    const amount = driveNorm * 40 + 1;
+    const samples = 1024;
+    const curve = new Float32Array(samples);
+    for (let i = 0; i < samples; i++) {
+      const x = (i * 2) / samples - 1;
+      // Soft clipping tanh-style
+      curve[i] = Math.tanh(x * amount) / Math.tanh(amount);
+    }
+    this.driveShaper.curve = curve;
+  }
+
+  // ── DELAY TIME ──
+  _getDelayTimeMs() {
+    const t = this.params.time; // 0-1
+    if (this.params.range === 'short') {
+      // 40ms to 400ms
+      return 40 + t * 360;
+    } else {
+      // 80ms to 800ms
+      return 80 + t * 720;
+    }
+  }
+
+  _updateDelayTime() {
+    if (!this.ctx || !this.delayNodeL || !this.delayNodeR) return;
+    const ms = this._getDelayTimeMs();
+    const sec = ms / 1000;
+    this.delayNodeL.delayTime.setTargetAtTime(sec, this.ctx.currentTime, 0.02);
+    this.delayNodeR.delayTime.setTargetAtTime(sec, this.ctx.currentTime, 0.02);
+    this._updateLFOAmount(); // LFO amount is relative to delay time
+  }
+
+  // ── FEEDBACK: 0-10 scale, >8 = self-oscillation ──
+  _updateFeedback() {
+    if (!this.ctx || !this.feedbackGainL || !this.feedbackGainR) return;
+    const fb = this.params.feedback;
+    // 0 = no feedback, 8 = ~1.0 (infinite), 10 = ~1.15 (self-oscillation)
+    let gain;
+    if (fb <= 8) {
+      gain = fb / 8;
+    } else {
+      gain = 1.0 + (fb - 8) * 0.075;
+    }
+    this.feedbackGainL.gain.setTargetAtTime(gain, this.ctx.currentTime, 0.02);
+    this.feedbackGainR.gain.setTargetAtTime(gain, this.ctx.currentTime, 0.02);
+  }
+
+  // ── BBD FILTER (anti-alias, darkens with long delay) ──
+  _updateBBDFilter() {
+    if (!this.ctx || !this.bbdFilterL) return;
+    // Short = 3kHz, Long = 1.7kHz per manual spec (Figure 6)
+    if (this.params.range === 'short') {
+      this.bbdFilterL.frequency.setTargetAtTime(3000, this.ctx.currentTime, 0.02);
+      this.bbdFilterR.frequency.setTargetAtTime(3000, this.ctx.currentTime, 0.02);
+    } else {
+      this.bbdFilterL.frequency.setTargetAtTime(1700, this.ctx.currentTime, 0.02);
+      this.bbdFilterR.frequency.setTargetAtTime(1700, this.ctx.currentTime, 0.02);
+    }
+    this.bbdFilterL.Q.value = 0.7;
+    this.bbdFilterR.Q.value = 0.7;
+  }
+
+  // ── MIX: Wet/Dry crossfader ──
+  _updateMix() {
+    if (!this.ctx || !this.dryGainL) return;
+    const m = this.params.mix / 10; // 0=dry, 1=wet
+    // Equal power crossfade
+    const dry = Math.cos(m * Math.PI / 2);
+    const wet = Math.sin(m * Math.PI / 2);
+    this.dryGainL.gain.setTargetAtTime(dry, this.ctx.currentTime, 0.02);
+    this.dryGainR.gain.setTargetAtTime(dry, this.ctx.currentTime, 0.02);
+    this.wetGainL.gain.setTargetAtTime(wet, this.ctx.currentTime, 0.02);
+    this.wetGainR.gain.setTargetAtTime(wet, this.ctx.currentTime, 0.02);
+  }
+
+  // ── OUTPUT LEVEL ──
+  _updateOutputLevel() {
+    if (!this.ctx || !this.outputGainL) return;
+    const o = this.params.output / 10;
+    // ~-20dB to +6dB range
+    const db = -20 + o * 26;
+    const gain = Math.pow(10, db / 20);
+    this.outputGainL.gain.setTargetAtTime(gain, this.ctx.currentTime, 0.02);
+    this.outputGainR.gain.setTargetAtTime(gain, this.ctx.currentTime, 0.02);
+  }
+
+  // ── LFO WAVEFORM ──
+  _updateLFOWaveform() {
+    if (!this.ctx || !this.lfoNode) return;
+    const wf = this.params.lfoWaveform;
+    if (wf === 'samplehold') {
+      // S&H: use square as base, we'll handle stepped random in a custom way
+      this.lfoNode.type = 'square';
+      this._startSampleHold();
+    } else if (wf === 'ramp') {
+      // Ramp = inverse sawtooth
+      this.lfoNode.type = 'sawtooth';
+      // We invert by negating the LFO gain
+      this._stopSampleHold();
+    } else {
+      this.lfoNode.type = wf;
+      this._stopSampleHold();
+    }
+  }
+
+  _startSampleHold() {
+    this._stopSampleHold();
+    // Create a custom S&H by scheduling random delay time changes
+    this._shInterval = setInterval(() => {
+      if (!this.ctx || this.params.lfoWaveform !== 'samplehold') {
+        this._stopSampleHold();
+        return;
+      }
+      const baseTime = this._getDelayTimeMs() / 1000;
+      const amount = this.params.lfoAmount / 10;
+      const maxMod = baseTime * amount * 0.5;
+      const randomOffset = (Math.random() * 2 - 1) * maxMod;
+      const newTime = Math.max(0.001, baseTime + randomOffset);
+      this.delayNodeL.delayTime.setTargetAtTime(newTime, this.ctx.currentTime, 0.005);
+      this.delayNodeR.delayTime.setTargetAtTime(newTime * 1.03, this.ctx.currentTime, 0.005);
+    }, 1000 / this.params.lfoRate);
+  }
+
+  _stopSampleHold() {
+    if (this._shInterval) {
+      clearInterval(this._shInterval);
+      this._shInterval = null;
+    }
+  }
+
+  // ── LFO RATE ──
+  _updateLFORate() {
+    if (!this.ctx || !this.lfoNode) return;
+    this.lfoNode.frequency.setTargetAtTime(this.params.lfoRate, this.ctx.currentTime, 0.02);
+    if (this.params.lfoWaveform === 'samplehold') {
+      this._startSampleHold();
+    }
+  }
+
+  // ── LFO AMOUNT: modulation depth ──
+  _updateLFOAmount() {
+    if (!this.ctx || !this.lfoGain || !this.lfoGainInv) return;
+    const amount = this.params.lfoAmount / 10; // 0-1
+    const baseTime = this._getDelayTimeMs() / 1000;
+    // At amount=10, modulation depth is ~50% of delay time (for octave pitch shift)
+    const depth = baseTime * amount * 0.5;
+    const sign = this.params.lfoWaveform === 'ramp' ? -1 : 1;
+    this.lfoGain.gain.setTargetAtTime(depth * sign, this.ctx.currentTime, 0.02);
+    this.lfoGainInv.gain.setTargetAtTime(-depth * sign, this.ctx.currentTime, 0.02);
+  }
+
+  // ── BYPASS: Normal / Spillover / Off ──
+  setBypass(mode) {
+    if (!this.ctx || !this.masterGain) return;
+    if (mode === 'on') {
+      // Effect ON (green)
+      this.bypassed = false;
+      this.spilloverMode = false;
+      this.masterGain.gain.setTargetAtTime(1, this.ctx.currentTime, 0.01);
+      this.preDelayGain.gain.setTargetAtTime(1, this.ctx.currentTime, 0.01);
+    } else if (mode === 'spillover') {
+      // Spillover (orange) — stop feeding new signal, let tails ring
+      this.bypassed = false;
+      this.spilloverMode = true;
+      this.masterGain.gain.setTargetAtTime(1, this.ctx.currentTime, 0.01);
+    } else {
+      // OFF (red)
+      this.bypassed = true;
+      this.spilloverMode = false;
+      this.masterGain.gain.setTargetAtTime(0, this.ctx.currentTime, 0.05);
+    }
+  }
+
+  // ── SAMPLE LOADING ──
+  async loadSample(arrayBuffer) {
+    if (!this.ctx) await this.init();
+    console.log('[Engine] decodeAudioData, buffer byteLength:', arrayBuffer.byteLength);
+    try {
+      this.sampleBuffer = await this.ctx.decodeAudioData(arrayBuffer);
+      console.log('[Engine] Decoded:', this.sampleBuffer.duration.toFixed(2) + 's',
+                  this.sampleBuffer.sampleRate + 'Hz',
+                  this.sampleBuffer.numberOfChannels + 'ch');
+    } catch (err) {
+      console.error('[Engine] decodeAudioData failed:', err);
+      throw new Error('Could not decode audio: ' + (err.message || 'unsupported format'));
+    }
+  }
+
+  playSample(startSec, endSec) {
+    if (!this.ctx || !this.sampleBuffer) return;
+    this.stopSample();
+
+    startSec = startSec ?? 0;
+    endSec = endSec ?? this.sampleBuffer.duration;
+    const regionDur = endSec - startSec;
+    if (regionDur <= 0) return;
+
+    this.sampleSource = this.ctx.createBufferSource();
+    this.sampleSource.buffer = this.sampleBuffer;
+    this.sampleSource.loop = true;
+    this.sampleSource.loopStart = startSec;
+    this.sampleSource.loopEnd = endSec;
+    this.sampleSource.connect(this.sampleInputGainNode);
+    this.sampleInputGainNode.connect(this.inputBlendSumNode);
+    this.sampleSource.start(0, startSec);
+    this.samplePlaying = true;
+    this._playRegionDur = regionDur;
+  }
+
+  stopSample() {
+    if (this.sampleSource) {
+      try { this.sampleSource.stop(); } catch(e) {}
+      this.sampleSource.disconnect();
+      this.sampleSource = null;
+    }
+    this.samplePlaying = false;
+  }
+
+  async connectLiveInput(deviceId = '') {
+    if (!this.ctx) await this.init();
+    if (!navigator.mediaDevices?.getUserMedia) return false;
+
+    await this.disconnectLiveInput();
+    const constraints = {
+      audio: deviceId ? { deviceId: { exact: deviceId }, echoCancellation: false, noiseSuppression: false, autoGainControl: false } :
+                        { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+    };
+    const stream = await navigator.mediaDevices.getUserMedia(constraints);
+    this.liveInputStream = stream;
+    this.liveInputSource = this.ctx.createMediaStreamSource(stream);
+    this.liveInputSource.connect(this.liveInputGainNode);
+    this.liveInputGainNode.connect(this.inputBlendSumNode);
+    this.inputDeviceId = deviceId || '';
+    this.inputMode = 'live';
+    return true;
+  }
+
+  async disconnectLiveInput() {
+    if (this.liveInputSource) {
+      this.liveInputSource.disconnect();
+      this.liveInputSource = null;
+    }
+    if (this.liveInputStream) {
+      this.liveInputStream.getTracks().forEach(t => t.stop());
+      this.liveInputStream = null;
+    }
+    return true;
+  }
+
+  async setOutputDevice(deviceId = '') {
+    this.outputDeviceId = deviceId || '';
+    if (this.ctx?.setSinkId) {
+      await this.ctx.setSinkId(this.outputDeviceId || 'default');
+      return true;
+    }
+    return false;
+  }
+
+  setLiveInputGain(value = 1) {
+    const v = Math.max(0, Math.min(2, Number(value) || 1));
+    this.liveInputGain = v;
+    if (this.ctx && this.liveInputGainNode) {
+      this.liveInputGainNode.gain.setTargetAtTime(v, this.ctx.currentTime, 0.01);
+    }
+    return v;
+  }
+
+  _updateInputBlend() {
+    if (!this.ctx || !this.liveInputGainNode || !this.sampleInputGainNode) return;
+    const live = Math.max(0, Math.min(1, this.inputBlend));
+    const sample = 1 - live;
+    this.liveInputGainNode.gain.setTargetAtTime(this.liveInputGain * live, this.ctx.currentTime, 0.01);
+    this.sampleInputGainNode.gain.setTargetAtTime(sample, this.ctx.currentTime, 0.01);
+  }
+
+  setInputBlend(value = 1) {
+    this.inputBlend = Math.max(0, Math.min(1, Number(value) || 0));
+    this._updateInputBlend();
+    return this.inputBlend;
+  }
+
+  setInputMode(mode = 'sample') {
+    if (mode === 'live') this.setInputBlend(1);
+    else if (mode === 'sample') this.setInputBlend(0);
+    else this.setInputBlend(0.5); // hybrid
+    this.inputMode = mode;
+    return this.inputMode;
+  }
+
+  startOutputRecording() {
+    if (!this.ctx || !this.recordingDestination || typeof MediaRecorder === 'undefined') return false;
+    if (this.mediaRecorder && this.mediaRecorder.state === 'recording') return false;
+
+    this.recordChunks = [];
+    const mime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+      ? 'audio/webm;codecs=opus'
+      : 'audio/webm';
+    this.mediaRecorder = new MediaRecorder(this.recordingDestination.stream, { mimeType: mime });
+    this.mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) this.recordChunks.push(e.data); };
+    this.mediaRecorder.start(250);
+    return true;
+  }
+
+  stopOutputRecording() {
+    return new Promise((resolve) => {
+      if (!this.mediaRecorder || this.mediaRecorder.state !== 'recording') {
+        resolve(null);
+        return;
+      }
+      this.mediaRecorder.onstop = () => {
+        const blob = new Blob(this.recordChunks, { type: this.mediaRecorder.mimeType || 'audio/webm' });
+        this.recordChunks = [];
+        resolve(blob);
+      };
+      this.mediaRecorder.stop();
+    });
+  }
+
+  // ── TAP TEMPO ──
+  tap() {
+    const now = performance.now();
+    this.tapTimes.push(now);
+
+    // Keep last 8 taps
+    if (this.tapTimes.length > 8) this.tapTimes.shift();
+
+    if (this.tapTimes.length >= 3) {
+      // Calculate average interval
+      let totalInterval = 0;
+      for (let i = 1; i < this.tapTimes.length; i++) {
+        totalInterval += this.tapTimes[i] - this.tapTimes[i-1];
+      }
+      const avgMs = totalInterval / (this.tapTimes.length - 1);
+
+      if (this.tapTarget === 'time') {
+        // Set delay time from tap
+        const range = this.params.range === 'short' ? [40, 400] : [80, 800];
+        const clamped = Math.max(range[0], Math.min(range[1], avgMs));
+        const norm = (clamped - range[0]) / (range[1] - range[0]);
+        this.params.time = norm;
+        this._updateDelayTime();
+        return { target: 'time', ms: clamped, normalized: norm };
+      } else {
+        // Set LFO rate from tap
+        const bpm = 60000 / avgMs;
+        const hz = bpm / 60;
+        const clamped = Math.max(0.05, Math.min(50, hz));
+        this.params.lfoRate = clamped;
+        this._updateLFORate();
+        return { target: 'lfo', hz: clamped };
+      }
+    }
+    return null;
+  }
+
+  toggleTapTarget() {
+    this.tapTarget = this.tapTarget === 'time' ? 'lfo' : 'time';
+    this.tapTimes = [];
+    return this.tapTarget;
+  }
+
+  // ── LEVEL METER ──
+  _startMeter() {
+    const update = () => {
+      if (!this.ctx) return;
+      this.analyser.getByteFrequencyData(this.analyserData);
+      let sum = 0;
+      for (let i = 0; i < this.analyserData.length; i++) sum += this.analyserData[i];
+      const avg = sum / this.analyserData.length;
+      const peak = Math.max(...this.analyserData);
+      this._meterLevel = avg / 255;
+      this._meterPeak = peak / 255;
+      requestAnimationFrame(update);
+    };
+    update();
+  }
+
+  getMeterLevel() {
+    return { avg: this._meterLevel || 0, peak: this._meterPeak || 0 };
+  }
+
+  // ── LFO LED flash ──
+  _startLFOLed() {
+    // We'll read this from the UI
+  }
+
+  // ── TIME LED flash ──
+  _startTimeLed() {
+    // We'll read this from the UI
+  }
+
+  // ── PARAM UPDATE DISPATCH ──
+  setParam(param, value) {
+    this.params[param] = value;
+    switch(param) {
+      case 'time': this._updateDelayTime(); break;
+      case 'feedback': this._updateFeedback(); break;
+      case 'drive': this._updateDriveCurve(); break;
+      case 'output': this._updateOutputLevel(); break;
+      case 'mix': this._updateMix(); break;
+      case 'lfoRate': this._updateLFORate(); break;
+      case 'lfoAmount': this._updateLFOAmount(); break;
+      case 'lfoWaveform': this._updateLFOWaveform(); this._updateLFOAmount(); break;
+      case 'range': this._updateDelayTime(); this._updateBBDFilter(); break;
+    }
+  }
+}
+
+
+// ═══════════════════════════════════════════════════════
+// MIDI ENGINE — Full MF-104M MIDI Implementation
+// Web MIDI API with USB/USB-C device support
+// ═══════════════════════════════════════════════════════
+
+class MIDIEngine {
+  constructor(audioEngine, uiCallback) {
+    this.audio = audioEngine;
+    this.uiCallback = uiCallback; // function(param, value) to update UI knobs
+    this.midiAccess = null;
+    this.activeInput = null;
+    this.activeOutput = null;
+    this.channel = 0; // 0-15, default ch1
+    this.omniMode = false;
+
+    // CC Learn
+    this.learning = false;
+    this.learnTarget = null; // param name to map
+
+    // Clock sync
+    this.clockSyncEnabled = false;
+    this.clockSyncTarget = 'time'; // 'time' or 'lfo'
+    this.clockTicks = [];
+    this.clockBPM = 0;
+    this.clockConfidence = 0;
+    this.timeSyncDivision = 1; // quarter-note default
+
+    // Note mode
+    this.noteMode = 'off'; // 'off', 'absolute', 'relative'
+    this.noteSpillover = false;
+
+    // 14-bit CC accumulators (MSB/LSB pairs)
+    this._msbValues = {};
+
+    // Delay time multiplier
+    this.timeMultiplier = 1;
+
+    // LFO clock divisions (CC107 table from manual)
+    this.lfoClockDivision = 1;
+
+    // Activity flash timers
+    this._inFlash = null;
+    this._outFlash = null;
+    this._clockFlash = null;
+
+    // Log buffer
+    this._logLines = [];
+
+    // ── MF-104M CC Map (from manual pages 22-25) ──
+    this.ccMap = {
+      // MSB CCs → parameter
+      7:   { param: 'output',     msb: true, lsb: 39 },
+      12:  { param: 'time',       msb: true, lsb: 44 },
+      13:  { param: 'feedback',   msb: true, lsb: 45 },
+      14:  { param: 'mix',        msb: true, lsb: 46 },
+      15:  { param: 'lfoRate',    msb: true, lsb: 47 },
+      16:  { param: 'lfoAmount',  msb: true, lsb: 48 },
+      // LSB CCs (handled via MSB lookup)
+      39:  { param: 'output',     isLSB: true, msb: 7 },
+      44:  { param: 'time',       isLSB: true, msb: 12 },
+      45:  { param: 'feedback',   isLSB: true, msb: 13 },
+      46:  { param: 'mix',        isLSB: true, msb: 14 },
+      47:  { param: 'lfoRate',    isLSB: true, msb: 15 },
+      48:  { param: 'lfoAmount',  isLSB: true, msb: 16 },
+      // Single-byte CCs
+      102: { param: 'lfoWaveform', type: 'waveform' },
+      86:  { param: 'range',       type: 'range' },
+      80:  { param: 'bypass',      type: 'bypass' },
+      // Extended CCs
+      5:   { param: 'timeSlew',    msb: true, lsb: 37 },
+      37:  { param: 'timeSlew',    isLSB: true, msb: 5 },
+      83:  { param: 'pitchBend',   type: 'pitchBend' },
+      85:  { param: 'filterBD',    type: 'filterBD' },
+      87:  { param: 'timeMultiplier', type: 'multiplier' },
+      89:  { param: 'timeMidiSync',  type: 'toggle' },
+      105: { param: 'lfoPhaseReset', type: 'trigger' },
+      107: { param: 'lfoClockDiv',   type: 'clockDiv' },
+      108: { param: 'lfoMidiSync',   type: 'toggle' },
+      109: { param: 'lfoNoteReset',  type: 'toggle' },
+      110: { param: 'noteSpillover', type: 'toggle' },
+      113: { param: 'noteMode',      type: 'noteMode' },
+      114: { param: 'tapTempoA',     type: 'tap' },
+      115: { param: 'tapTempoB',     type: 'tap' },
+      117: { param: 'ledSelect',     type: 'toggle' },
+      119: { param: 'modWheelLfo',   type: 'toggle' },
+      1:   { param: 'modWheel',      type: 'modWheel' },
+    };
+
+    // Reverse map: param → CC# (for CC learn and output)
+    this.paramToCC = {};
+    for (const [cc, def] of Object.entries(this.ccMap)) {
+      if (!def.isLSB) {
+        this.paramToCC[def.param] = parseInt(cc);
+      }
+    }
+  }
+
+  // ── Initialize Web MIDI API ──
+  async init() {
+    if (!navigator.requestMIDIAccess) {
+      this._log('Web MIDI API not supported', 'error');
+      return false;
+    }
+
+    try {
+      this.midiAccess = await navigator.requestMIDIAccess({ sysex: false });
+      this._log('MIDI access granted');
+
+      // Listen for hotplug
+      this.midiAccess.onstatechange = (e) => this._onStateChange(e);
+
+      this._refreshDevices();
+      return true;
+    } catch(err) {
+      this._log('MIDI access denied: ' + err.message, 'error');
+      return false;
+    }
+  }
+
+  // ── Device Management ──
+  _refreshDevices() {
+    const inputSelect = document.getElementById('midiInputSelect');
+    const outputSelect = document.getElementById('midiOutputSelect');
+    const countEl = document.getElementById('midiDeviceCount');
+
+    // Save current selections
+    const prevIn = inputSelect.value;
+    const prevOut = outputSelect.value;
+
+    // Clear and rebuild
+    inputSelect.innerHTML = '<option value="">— No MIDI Input —</option>';
+    outputSelect.innerHTML = '<option value="">— No MIDI Output —</option>';
+
+    let totalDevices = 0;
+
+    // Enumerate inputs
+    for (const [id, input] of this.midiAccess.inputs) {
+      const opt = document.createElement('option');
+      opt.value = id;
+      const label = input.name || 'Unknown Device';
+      const mfr = input.manufacturer ? ` (${input.manufacturer})` : '';
+      opt.textContent = label + mfr;
+      // Tag USB-C vs USB
+      if (label.toLowerCase().includes('move') || label.toLowerCase().includes('ableton')) {
+        opt.textContent = '⚡ ' + opt.textContent; // USB-C indicator
+      }
+      inputSelect.appendChild(opt);
+      totalDevices++;
+    }
+
+    // Enumerate outputs
+    for (const [id, output] of this.midiAccess.outputs) {
+      const opt = document.createElement('option');
+      opt.value = id;
+      const label = output.name || 'Unknown Device';
+      const mfr = output.manufacturer ? ` (${output.manufacturer})` : '';
+      opt.textContent = label + mfr;
+      if (label.toLowerCase().includes('move') || label.toLowerCase().includes('ableton')) {
+        opt.textContent = '⚡ ' + opt.textContent;
+      }
+      outputSelect.appendChild(opt);
+    }
+
+    // Restore selections if still available
+    if (prevIn) inputSelect.value = prevIn;
+    if (prevOut) outputSelect.value = prevOut;
+
+    countEl.innerHTML = `<span>${totalDevices}</span> device${totalDevices !== 1 ? 's' : ''}`;
+
+    // Auto-connect if only one device
+    if (!this.activeInput && this.midiAccess.inputs.size === 1) {
+      const firstId = this.midiAccess.inputs.keys().next().value;
+      inputSelect.value = firstId;
+      this.selectInput(firstId);
+    }
+
+    // Update toggle button state
+    const btn = document.getElementById('midiToggleBtn');
+    btn.classList.toggle('active', totalDevices > 0);
+  }
+
+  _onStateChange(event) {
+    const port = event.port;
+    const state = port.state; // 'connected' or 'disconnected'
+    const direction = port.type; // 'input' or 'output'
+
+    this._log(`${direction} ${state}: ${port.name}`);
+    this._refreshDevices();
+
+    // Auto-reconnect
+    if (state === 'connected' && direction === 'input' && !this.activeInput) {
+      this.selectInput(port.id);
+      document.getElementById('midiInputSelect').value = port.id;
+    }
+  }
+
+  selectInput(id) {
+    // Disconnect previous
+    if (this.activeInput) {
+      this.activeInput.onmidimessage = null;
+    }
+
+    if (!id) {
+      this.activeInput = null;
+      return;
+    }
+
+    const input = this.midiAccess.inputs.get(id);
+    if (input) {
+      this.activeInput = input;
+      input.onmidimessage = (e) => this._onMIDIMessage(e);
+      this._log(`Connected input: ${input.name}`);
+    }
+  }
+
+  selectOutput(id) {
+    this.activeOutput = id ? this.midiAccess.outputs.get(id) : null;
+    if (this.activeOutput) {
+      this._log(`Connected output: ${this.activeOutput.name}`);
+    }
+  }
+
+  // ── MIDI Message Handler ──
+  _onMIDIMessage(event) {
+    const [status, data1, data2] = event.data;
+    const type = status & 0xF0;
+    const ch = status & 0x0F;
+
+    // Flash input LED
+    this._flashDot('in');
+
+    // System messages (no channel filtering)
+    if (status === 0xF8) {
+      // MIDI Clock tick (24 ppqn)
+      this._onClockTick();
+      return;
+    }
+    if (status === 0xFA) { this._log('Clock Start', 'clock'); return; }
+    if (status === 0xFC) { this._log('Clock Stop', 'clock'); return; }
+    if (status === 0xFE) return; // Active sensing, ignore
+
+    // Channel filtering
+    if (!this.omniMode && ch !== this.channel) return;
+
+    switch(type) {
+      case 0xB0: // Control Change
+        this._onCC(data1, data2);
+        break;
+      case 0x90: // Note On
+        if (data2 > 0) {
+          this._onNoteOn(data1, data2);
+        } else {
+          this._onNoteOff(data1);
+        }
+        break;
+      case 0x80: // Note Off
+        this._onNoteOff(data1);
+        break;
+      case 0xE0: // Pitch Bend
+        this._onPitchBend(data1, data2);
+        break;
+    }
+  }
+
+  // ── CC Processing (MF-104M spec) ──
+  _onCC(cc, value) {
+    this._log(`CC${cc}: ${value}`, 'in');
+
+    // CC Learn mode
+    if (this.learning && this.learnTarget) {
+      this.paramToCC[this.learnTarget] = cc;
+      this.ccMap[cc] = { param: this.learnTarget, msb: true };
+      this._updateCCGridDisplay();
+      this._log(`Learned: ${this.learnTarget} → CC${cc}`);
+      this.learning = false;
+      this.learnTarget = null;
+      document.getElementById('midiLearnBtn').classList.remove('active');
+      document.querySelectorAll('.midi-cc-item.learning').forEach(el => el.classList.remove('learning'));
+      return;
+    }
+
+    const mapping = this.ccMap[cc];
+    if (!mapping) return;
+
+    // Flash CC grid item
+    this._flashCCItem(mapping.param);
+
+    // Handle 14-bit MSB
+    if (mapping.msb && mapping.lsb !== undefined) {
+      this._msbValues[cc] = value;
+      const lsbVal = this._msbValues[mapping.lsb] || 0;
+      const fullVal = (value << 7) | lsbVal;
+      const normalized = fullVal / 16383;
+      this._applyParam(mapping.param, normalized);
+      return;
+    }
+
+    // Handle 14-bit LSB
+    if (mapping.isLSB) {
+      this._msbValues[cc] = value;
+      const msbVal = this._msbValues[mapping.msb] || 0;
+      const fullVal = (msbVal << 7) | value;
+      const normalized = fullVal / 16383;
+      const msbMapping = this.ccMap[mapping.msb];
+      if (msbMapping) this._applyParam(msbMapping.param, normalized);
+      return;
+    }
+
+    // Single-byte CCs
+    switch(mapping.type) {
+      case 'waveform': {
+        // CC102: 0-15=Sine, 16-31=Tri, 32-47=Sq, 48-63=Saw, 64-79=Ramp, 80-95=S&H, 96-127=Smooth S&H
+        const wfIndex = Math.floor(value / 16);
+        const waveforms = ['sine','triangle','square','sawtooth','ramp','samplehold','samplehold'];
+        const wf = waveforms[Math.min(wfIndex, 6)];
+        this.audio.setParam('lfoWaveform', wf);
+        this.uiCallback('lfoWaveform', wf);
+        break;
+      }
+      case 'range': {
+        // CC86: 0=Long, 64+=Short
+        const range = value >= 64 ? 'short' : 'long';
+        this.audio.setParam('range', range);
+        this.uiCallback('range', range);
+        break;
+      }
+      case 'bypass': {
+        // CC80: 0-63=Bypassed, 64-127=Active
+        const mode = value >= 64 ? 'on' : 'off';
+        this.uiCallback('bypass', mode);
+        break;
+      }
+      case 'multiplier': {
+        // CC87: 0-31=1x, 32-63=2x, 64-95=4x, 96-127=8x
+        if (value < 32) this.timeMultiplier = 1;
+        else if (value < 64) this.timeMultiplier = 2;
+        else if (value < 96) this.timeMultiplier = 4;
+        else this.timeMultiplier = 8;
+        this._log(`Time multiplier: ${this.timeMultiplier}x`);
+        break;
+      }
+      case 'toggle': {
+        const on = value >= 64;
+        if (mapping.param === 'timeMidiSync') {
+          this.clockSyncEnabled = on;
+          this.clockSyncTarget = 'time';
+          this._log(`Time MIDI sync: ${on ? 'ON' : 'OFF'}`);
+        } else if (mapping.param === 'lfoMidiSync') {
+          this.clockSyncEnabled = on;
+          this.clockSyncTarget = 'lfo';
+          this._log(`LFO MIDI sync: ${on ? 'ON' : 'OFF'}`);
+        } else if (mapping.param === 'noteSpillover') {
+          this.noteSpillover = on;
+        } else if (mapping.param === 'modWheelLfo') {
+          this._modWheelToLfo = on;
+        }
+        break;
+      }
+      case 'noteMode': {
+        if (value < 42) this.noteMode = 'off';
+        else if (value < 84) this.noteMode = 'absolute';
+        else this.noteMode = 'relative';
+        this._log(`Note mode: ${this.noteMode}`);
+        document.getElementById('midiNoteModeBtn').textContent = `Note Mode: ${this.noteMode.charAt(0).toUpperCase()+this.noteMode.slice(1)}`;
+        break;
+      }
+      case 'tap': {
+        // CC114/115: each received value is a tap
+        if (mapping.param === 'tapTempoA' || (mapping.param === 'tapTempoB' && value >= 64)) {
+          const result = this.audio.tap();
+          if (result) this.uiCallback('tap', result);
+        }
+        break;
+      }
+      case 'trigger': {
+        // CC105: LFO phase reset (any value)
+        if (mapping.param === 'lfoPhaseReset') {
+          this._log('LFO phase reset');
+        }
+        break;
+      }
+      case 'clockDiv': {
+        // CC107: LFO clock divisions table
+        this.lfoClockDivision = this._clockDivFromCC(value);
+        this._log(`LFO clock div: 1/${this.lfoClockDivision}`);
+        break;
+      }
+      case 'pitchBend': {
+        // CC83: pitch bend amount
+        this._log(`Pitch bend amount: ${value}`);
+        break;
+      }
+      case 'filterBD': {
+        // CC85: 0-63=bright, 64-127=dark
+        this._log(`Filter: ${value < 64 ? 'Bright' : 'Dark'}`);
+        break;
+      }
+      case 'modWheel': {
+        // CC1: Mod wheel → LFO Amount if enabled
+        if (this._modWheelToLfo) {
+          const normalized = value / 127;
+          this._applyParam('lfoAmount', normalized);
+        }
+        break;
+      }
+    }
+  }
+
+  // ── Apply normalized 0-1 param to audio + UI ──
+  _applyParam(param, normalized) {
+    let engineValue;
+    switch(param) {
+      case 'time':
+        engineValue = normalized; // already 0-1
+        this.audio.setParam('time', engineValue);
+        this.uiCallback('time', engineValue);
+        break;
+      case 'feedback':
+        engineValue = normalized * 10;
+        this.audio.setParam('feedback', engineValue);
+        this.uiCallback('feedback', engineValue);
+        break;
+      case 'output':
+        engineValue = normalized * 10;
+        this.audio.setParam('output', engineValue);
+        this.uiCallback('output', engineValue);
+        break;
+      case 'mix':
+        engineValue = normalized * 10;
+        this.audio.setParam('mix', engineValue);
+        this.uiCallback('mix', engineValue);
+        break;
+      case 'lfoRate': {
+        // Logarithmic: 0.05Hz to 50Hz
+        const logMin = Math.log(0.05), logMax = Math.log(50);
+        engineValue = Math.exp(logMin + normalized * (logMax - logMin));
+        this.audio.setParam('lfoRate', engineValue);
+        this.uiCallback('lfoRate', engineValue);
+        break;
+      }
+      case 'lfoAmount':
+        engineValue = normalized * 10;
+        this.audio.setParam('lfoAmount', engineValue);
+        this.uiCallback('lfoAmount', engineValue);
+        break;
+      case 'drive':
+        engineValue = normalized * 10;
+        this.audio.setParam('drive', engineValue);
+        this.uiCallback('drive', engineValue);
+        break;
+    }
+  }
+
+  // ── Note On (MIDI Note Mode) ──
+  _onNoteOn(note, velocity) {
+    this._log(`Note On: ${note} vel:${velocity}`, 'note');
+
+    if (this.noteMode === 'off') return;
+
+    if (this.noteMode === 'absolute') {
+      // Note 0-90 maps to delay time range
+      const normalized = Math.min(note / 90, 1);
+      this.audio.setParam('time', normalized);
+      this.uiCallback('time', normalized);
+    } else if (this.noteMode === 'relative') {
+      // Notes relative to C4 (60): higher = shorter delay, lower = longer
+      const semitones = note - 60;
+      const multiplier = Math.pow(2, -semitones / 12);
+      const baseTime = this.audio.params.time;
+      const newTime = Math.max(0, Math.min(1, baseTime * multiplier));
+      this.audio.setParam('time', newTime);
+      this.uiCallback('time', newTime);
+    }
+  }
+
+  _onNoteOff(note) {
+    // Note off doesn't affect delay in standard mode
+  }
+
+  // ── Pitch Bend ──
+  _onPitchBend(lsb, msb) {
+    const value = ((msb << 7) | lsb) - 8192; // -8192 to 8191
+    const normalized = value / 8192; // -1 to 1
+    // Apply to delay time as modulation
+    this._log(`PB: ${normalized.toFixed(3)}`, 'in');
+  }
+
+  // ── MIDI Clock (24 ppqn) ──
+  _onClockTick() {
+    if (!this.clockSyncEnabled) return;
+    this._flashDot('clock');
+
+    const now = performance.now();
+    this.clockTicks.push(now);
+
+    // Keep last 96 ticks (~4 beats)
+    if (this.clockTicks.length > 96) this.clockTicks.shift();
+
+    if (this.clockTicks.length >= 25) {
+      const recent = this.clockTicks.slice(-25);
+      const intervals = [];
+      for (let i = 1; i < recent.length; i++) intervals.push(recent[i] - recent[i - 1]);
+      const avgTickMs = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+      const variance = intervals.reduce((a, b) => a + Math.pow(b - avgTickMs, 2), 0) / intervals.length;
+      const std = Math.sqrt(variance);
+      const confidence = Math.max(0, Math.min(1, 1 - (std / Math.max(avgTickMs, 1)) * 5));
+      this.clockConfidence = confidence;
+
+      const beatMsRaw = avgTickMs * 24;
+      const quantizedBeatMs = Math.round(beatMsRaw / 2) * 2; // 2ms quantization smoothing
+      const beatMs = quantizedBeatMs;
+      this.clockBPM = 60000 / beatMs;
+      this._updateClockStatusUI();
+
+      if (this.clockSyncTarget === 'time') {
+        // Sync delay time with quantized division
+        const delayMs = beatMs * this.timeSyncDivision * this.timeMultiplier;
+        const range = this.audio.params.range === 'short' ? [40, 400] : [80, 800];
+        const clamped = Math.max(range[0], Math.min(range[1], delayMs));
+        const norm = (clamped - range[0]) / (range[1] - range[0]);
+        this.audio.setParam('time', norm);
+        this.uiCallback('time', norm);
+        this.uiCallback('timeLed', 'amber');
+      } else if (this.clockSyncTarget === 'lfo') {
+        const beatHz = 1000 / beatMs;
+        const lfoHz = beatHz * this.lfoClockDivision;
+        const clamped = Math.max(0.05, Math.min(50, lfoHz));
+        this.audio.setParam('lfoRate', clamped);
+        this.uiCallback('lfoRate', clamped);
+        this.uiCallback('lfoLed', 'amber');
+      }
+    }
+  }
+
+  _clockDivFromCC(value) {
+    // CC107 clock division table from manual (page 24)
+    const divTable = [
+      [0,5,0.0625],[6,11,0.083],[12,17,0.125],[18,23,0.1875],
+      [24,29,0.1667],[30,34,0.208],[35,40,0.25],[41,46,0.375],
+      [47,52,0.333],[53,58,0.5],[59,63,0.75],[64,69,0.667],
+      [70,75,1],[76,81,1.5],[82,87,1.333],[88,93,2],
+      [94,98,3],[99,104,2.667],[105,110,4],[111,116,5.333],
+      [117,122,8],[123,127,10.667]
+    ];
+    for (const [lo, hi, div] of divTable) {
+      if (value >= lo && value <= hi) return div;
+    }
+    return 1;
+  }
+
+  _updateClockStatusUI() {
+    const bpmEl = document.getElementById('midiClockBpm');
+    const confEl = document.getElementById('midiClockConfidence');
+    if (!bpmEl || !confEl) return;
+    bpmEl.textContent = Number.isFinite(this.clockBPM) && this.clockBPM > 0 ? `BPM ${this.clockBPM.toFixed(1)}` : 'BPM --';
+    const pct = Math.round(this.clockConfidence * 100);
+    confEl.textContent = `Conf ${pct}%`;
+    confEl.classList.remove('low', 'mid', 'high');
+    if (pct >= 85) confEl.classList.add('high');
+    else if (pct >= 60) confEl.classList.add('mid');
+    else confEl.classList.add('low');
+  }
+
+  // ── Send MIDI Out ──
+  sendCC(cc, value) {
+    if (!this.activeOutput) return;
+    this.activeOutput.send([0xB0 | this.channel, cc, value & 0x7F]);
+    this._flashDot('out');
+  }
+
+  sendNoteOn(note, velocity = 100) {
+    if (!this.activeOutput) return;
+    this.activeOutput.send([0x90 | this.channel, note & 0x7F, velocity & 0x7F]);
+    this._flashDot('out');
+  }
+
+  sendNoteOff(note) {
+    if (!this.activeOutput) return;
+    this.activeOutput.send([0x80 | this.channel, note & 0x7F, 0]);
+  }
+
+  // ── Send current pedal state as CCs ──
+  sendAllParams() {
+    if (!this.activeOutput) return;
+    const p = this.audio.params;
+    this.sendCC(12, Math.round(p.time * 127));
+    this.sendCC(13, Math.round((p.feedback / 10) * 127));
+    this.sendCC(14, Math.round((p.mix / 10) * 127));
+    this.sendCC(7, Math.round((p.output / 10) * 127));
+    this.sendCC(15, Math.round(((Math.log(p.lfoRate)-Math.log(0.05))/(Math.log(50)-Math.log(0.05))) * 127));
+    this.sendCC(16, Math.round((p.lfoAmount / 10) * 127));
+    this._log('Sent all params');
+  }
+
+  // ── CC Learn Mode ──
+  startLearn(paramName) {
+    this.learning = true;
+    this.learnTarget = paramName;
+    this._log(`Learning CC for: ${paramName}...`);
+
+    // Highlight CC grid item
+    document.querySelectorAll('.midi-cc-item').forEach(el => {
+      el.classList.toggle('learning', el.dataset.ccParam === paramName);
+    });
+  }
+
+  cancelLearn() {
+    this.learning = false;
+    this.learnTarget = null;
+    document.querySelectorAll('.midi-cc-item.learning').forEach(el => el.classList.remove('learning'));
+    document.getElementById('midiLearnBtn').classList.remove('active');
+  }
+
+
+  exportState() {
+    const mappings = {};
+    document.querySelectorAll('.midi-cc-item').forEach(el => {
+      const param = el.dataset.ccParam;
+      const cc = this.paramToCC[param];
+      if (typeof cc === 'number') mappings[param] = cc;
+    });
+    return {
+      channel: this.channel,
+      omniMode: this.omniMode,
+      clockSyncEnabled: this.clockSyncEnabled,
+      clockSyncTarget: this.clockSyncTarget,
+      noteMode: this.noteMode,
+      noteSpillover: this.noteSpillover,
+      timeMultiplier: this.timeMultiplier,
+      lfoClockDivision: this.lfoClockDivision,
+      timeSyncDivision: this.timeSyncDivision,
+      mappings,
+      selectedInputId: this.activeInput?.id || '',
+      selectedOutputId: this.activeOutput?.id || ''
+    };
+  }
+
+  importState(state = {}) {
+    if (typeof state.channel === 'number') this.channel = Math.max(0, Math.min(15, state.channel));
+    this.omniMode = !!state.omniMode;
+    if (state.clockSyncTarget === 'time' || state.clockSyncTarget === 'lfo') this.clockSyncTarget = state.clockSyncTarget;
+    this.clockSyncEnabled = !!state.clockSyncEnabled;
+    if (['off','absolute','relative'].includes(state.noteMode)) this.noteMode = state.noteMode;
+    this.noteSpillover = !!state.noteSpillover;
+    if (typeof state.timeMultiplier === 'number' && Number.isFinite(state.timeMultiplier)) this.timeMultiplier = state.timeMultiplier;
+    if (typeof state.lfoClockDivision === 'number' && Number.isFinite(state.lfoClockDivision)) this.lfoClockDivision = state.lfoClockDivision;
+    if (typeof state.timeSyncDivision === 'number' && Number.isFinite(state.timeSyncDivision)) this.timeSyncDivision = state.timeSyncDivision;
+
+    const mappings = state.mappings || {};
+    for (const [param, ccRaw] of Object.entries(mappings)) {
+      const cc = Number(ccRaw);
+      if (!Number.isInteger(cc) || cc < 0 || cc > 127) continue;
+      const oldCC = this.paramToCC[param];
+      if (oldCC !== undefined && this.ccMap[oldCC]?.param === param) {
+        delete this.ccMap[oldCC];
+      }
+      for (const [otherParam, otherCC] of Object.entries(this.paramToCC)) {
+        if (otherParam !== param && otherCC === cc) delete this.paramToCC[otherParam];
+      }
+      this.paramToCC[param] = cc;
+      this.ccMap[cc] = { param, msb: true };
+    }
+    this._updateCCGridDisplay();
+
+    if (state.selectedInputId) {
+      document.getElementById('midiInputSelect').value = state.selectedInputId;
+      this.selectInput(state.selectedInputId);
+    }
+    if (state.selectedOutputId) {
+      document.getElementById('midiOutputSelect').value = state.selectedOutputId;
+      this.selectOutput(state.selectedOutputId);
+    }
+  }
+
+  // ── Panic: all notes off ──
+  panic() {
+    if (!this.activeOutput) return;
+    for (let ch = 0; ch < 16; ch++) {
+      this.activeOutput.send([0xB0 | ch, 123, 0]); // All notes off
+      this.activeOutput.send([0xB0 | ch, 120, 0]); // All sound off
+    }
+    this._log('PANIC: All notes/sounds off');
+  }
+
+  // ── UI Helpers ──
+  _flashDot(which) {
+    const dot = document.getElementById(which === 'in' ? 'midiDotIn' : which === 'out' ? 'midiDotOut' : 'midiDotClock');
+    const cls = which === 'in' ? 'in-active' : which === 'out' ? 'out-active' : 'clock-active';
+    dot.classList.add(cls);
+    clearTimeout(this[`_${which}Flash`]);
+    this[`_${which}Flash`] = setTimeout(() => dot.classList.remove(cls), 80);
+  }
+
+  _flashCCItem(param) {
+    const el = document.querySelector(`.midi-cc-item[data-cc-param="${param}"]`);
+    if (el) {
+      el.classList.add('active-cc');
+      setTimeout(() => el.classList.remove('active-cc'), 200);
+    }
+  }
+
+  _updateCCGridDisplay() {
+    document.querySelectorAll('.midi-cc-item').forEach(el => {
+      const param = el.dataset.ccParam;
+      const cc = this.paramToCC[param];
+      if (cc !== undefined) {
+        el.querySelector('.midi-cc-num').textContent = `CC${cc}`;
+      }
+    });
+  }
+
+  _log(msg, type) {
+    const log = document.getElementById('midiLog');
+    if (!log) return;
+    const cls = type === 'in' ? 'msg-in' : type === 'clock' ? 'msg-clock' : type === 'note' ? 'msg-note' : '';
+    const time = new Date().toLocaleTimeString('en-US', {hour12:false, hour:'2-digit', minute:'2-digit', second:'2-digit'});
+    const line = `<span class="${cls}">[${time}] ${msg}</span>`;
+    this._logLines.push(line);
+    if (this._logLines.length > 50) this._logLines.shift();
+    log.innerHTML = this._logLines.join('<br>');
+    log.scrollTop = log.scrollHeight;
+  }
+}
+
+
+// ═══════════════════════════════════════════════════════
+// WAVEFORM EDITOR — Canvas display, markers, hit detection
+// ═══════════════════════════════════════════════════════
+
+class WaveformEditor {
+  constructor() {
+    this.canvas = document.getElementById('weCanvas');
+    this.ctx2d = this.canvas.getContext('2d');
+    this.wrap = document.getElementById('weCanvasWrap');
+    this.emptyMsg = document.getElementById('weEmpty');
+    this.playhead = document.getElementById('wePlayhead');
+    this.markerStart = document.getElementById('weMarkerStart');
+    this.markerEnd = document.getElementById('weMarkerEnd');
+    this.regionLeft = document.getElementById('weRegionLeft');
+    this.regionRight = document.getElementById('weRegionRight');
+    this.hitpointsEl = document.getElementById('weHitpoints');
+    this.thresholdSlider = document.getElementById('weThreshold');
+    this.thresholdVal = document.getElementById('weThresholdVal');
+    this.hitCountEl = document.getElementById('weHitCount');
+
+    this.audioBuffer = null;
+    this.channelData = null;
+    this.duration = 0;
+    this.sampleRate = 0;
+
+    // Marker positions as fraction 0-1
+    this.startPos = 0;
+    this.endPos = 1;
+    this.hitPoints = []; // array of fractional positions
+
+    // Drag state
+    this.dragging = null; // 'start' | 'end' | null
+    this.dragOffsetX = 0;
+
+    this._bindEvents();
+    this._resize();
+    window.addEventListener('resize', () => this._resize());
+  }
+
+  _resize() {
+    const rect = this.wrap.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    this.canvas.width = rect.width * dpr;
+    this.canvas.height = rect.height * dpr;
+    this.ctx2d.setTransform(dpr, 0, 0, dpr, 0, 0);
+    this.displayWidth = rect.width;
+    this.displayHeight = rect.height;
+    if (this.channelData) this._drawWaveform();
+  }
+
+  // ── Load audio buffer and render ──
+  setBuffer(audioBuffer) {
+    this.audioBuffer = audioBuffer;
+    this.duration = audioBuffer.duration;
+    this.sampleRate = audioBuffer.sampleRate;
+
+    // Mix down to mono for display
+    if (audioBuffer.numberOfChannels === 1) {
+      this.channelData = audioBuffer.getChannelData(0);
+    } else {
+      const ch0 = audioBuffer.getChannelData(0);
+      const ch1 = audioBuffer.getChannelData(1);
+      this.channelData = new Float32Array(ch0.length);
+      for (let i = 0; i < ch0.length; i++) {
+        this.channelData[i] = (ch0[i] + ch1[i]) * 0.5;
+      }
+    }
+
+    // Reset markers
+    this.startPos = 0;
+    this.endPos = 1;
+    this._updateMarkerPositions();
+
+    // Update info
+    document.getElementById('weSampleRate').innerHTML = `<span>${(this.sampleRate/1000).toFixed(1)}k</span>Hz`;
+    document.getElementById('weDuration').innerHTML = `<span>${this.duration.toFixed(2)}</span>s`;
+
+    this.emptyMsg.classList.add('hidden');
+    this._resize();
+    this._detectHits();
+    this._updateTimeReadouts();
+    this.onRegionChange?.();
+  }
+
+  // ── Draw the waveform ──
+  _drawWaveform() {
+    const ctx = this.ctx2d;
+    const w = this.displayWidth;
+    const h = this.displayHeight;
+    const data = this.channelData;
+    if (!data) return;
+
+    ctx.clearRect(0, 0, w, h);
+
+    const len = data.length;
+    const samplesPerPx = len / w;
+    const mid = h / 2;
+
+    // ── Grid lines ──
+    // Horizontal: 0dB center, ±6dB, ±12dB
+    ctx.strokeStyle = '#1a1a1a';
+    ctx.lineWidth = 1;
+    const dbLevels = [0.5, 0.25, 0.75]; // fraction of half-height
+    for (const lvl of dbLevels) {
+      ctx.beginPath();
+      ctx.moveTo(0, mid - lvl * mid);
+      ctx.lineTo(w, mid - lvl * mid);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(0, mid + lvl * mid);
+      ctx.lineTo(w, mid + lvl * mid);
+      ctx.stroke();
+    }
+    // Vertical: time divisions (every 0.5s or adaptive)
+    if (this.duration > 0) {
+      const interval = this.duration > 10 ? 2 : this.duration > 4 ? 1 : this.duration > 1 ? 0.5 : 0.1;
+      for (let t = interval; t < this.duration; t += interval) {
+        const x = (t / this.duration) * w;
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, h);
+        ctx.stroke();
+        // Time label
+        ctx.fillStyle = '#2a2a2a';
+        ctx.font = '8px Helvetica Neue, sans-serif';
+        ctx.fillText(t.toFixed(1) + 's', x + 2, h - 3);
+      }
+    }
+
+    // Draw center line
+    ctx.strokeStyle = '#1e1e1e';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, mid);
+    ctx.lineTo(w, mid);
+    ctx.stroke();
+
+    // Draw waveform — min/max per pixel column for accuracy
+    // Background fill
+    ctx.fillStyle = 'rgba(0, 180, 80, 0.08)';
+    ctx.beginPath();
+    ctx.moveTo(0, mid);
+
+    for (let x = 0; x < w; x++) {
+      const startSample = Math.floor(x * samplesPerPx);
+      const endSample = Math.min(Math.floor((x + 1) * samplesPerPx), len);
+      let max = -1;
+      for (let s = startSample; s < endSample; s++) {
+        const abs = Math.abs(data[s]);
+        if (abs > max) max = abs;
+      }
+      const y = mid - max * mid * 0.92;
+      ctx.lineTo(x, y);
+    }
+    for (let x = w - 1; x >= 0; x--) {
+      const startSample = Math.floor(x * samplesPerPx);
+      const endSample = Math.min(Math.floor((x + 1) * samplesPerPx), len);
+      let max = -1;
+      for (let s = startSample; s < endSample; s++) {
+        const abs = Math.abs(data[s]);
+        if (abs > max) max = abs;
+      }
+      const y = mid + max * mid * 0.92;
+      ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    ctx.fill();
+
+    // Main waveform line (top contour)
+    ctx.strokeStyle = 'rgba(0, 220, 100, 0.6)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let x = 0; x < w; x++) {
+      const startSample = Math.floor(x * samplesPerPx);
+      const endSample = Math.min(Math.floor((x + 1) * samplesPerPx), len);
+      let maxVal = -1, minVal = 1;
+      for (let s = startSample; s < endSample; s++) {
+        if (data[s] > maxVal) maxVal = data[s];
+        if (data[s] < minVal) minVal = data[s];
+      }
+      const yTop = mid - maxVal * mid * 0.92;
+      const yBot = mid - minVal * mid * 0.92;
+      if (x === 0) {
+        ctx.moveTo(x, yTop);
+      } else {
+        ctx.lineTo(x, yTop);
+      }
+    }
+    ctx.stroke();
+
+    // Bottom contour
+    ctx.beginPath();
+    for (let x = 0; x < w; x++) {
+      const startSample = Math.floor(x * samplesPerPx);
+      const endSample = Math.min(Math.floor((x + 1) * samplesPerPx), len);
+      let minVal = 1;
+      for (let s = startSample; s < endSample; s++) {
+        if (data[s] < minVal) minVal = data[s];
+      }
+      const yBot = mid - minVal * mid * 0.92;
+      if (x === 0) {
+        ctx.moveTo(x, yBot);
+      } else {
+        ctx.lineTo(x, yBot);
+      }
+    }
+    ctx.stroke();
+
+    // RMS envelope overlay (bright contour)
+    ctx.strokeStyle = 'rgba(0, 255, 120, 0.9)';
+    ctx.lineWidth = 1.2;
+    const rmsWindowPx = 3;
+    const rmsWindowSamples = Math.floor(rmsWindowPx * samplesPerPx);
+
+    ctx.beginPath();
+    for (let x = 0; x < w; x++) {
+      const center = Math.floor(x * samplesPerPx);
+      const s0 = Math.max(0, center - Math.floor(rmsWindowSamples / 2));
+      const s1 = Math.min(len, s0 + rmsWindowSamples);
+      let sumSq = 0;
+      for (let s = s0; s < s1; s++) sumSq += data[s] * data[s];
+      const rms = Math.sqrt(sumSq / (s1 - s0));
+      const y = mid - rms * mid * 0.92;
+      if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+    // Mirror
+    ctx.beginPath();
+    for (let x = 0; x < w; x++) {
+      const center = Math.floor(x * samplesPerPx);
+      const s0 = Math.max(0, center - Math.floor(rmsWindowSamples / 2));
+      const s1 = Math.min(len, s0 + rmsWindowSamples);
+      let sumSq = 0;
+      for (let s = s0; s < s1; s++) sumSq += data[s] * data[s];
+      const rms = Math.sqrt(sumSq / (s1 - s0));
+      const y = mid + rms * mid * 0.92;
+      if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+
+    // ── THRESHOLD LINE ── dashed amber line at the current threshold level
+    this._drawThresholdLine(ctx, w, h, mid);
+  }
+
+  _drawThresholdLine(ctx, w, h, mid) {
+    const threshold = parseInt(this.thresholdSlider.value) / 100;
+    if (threshold <= 0) return;
+
+    const threshY_top = mid - threshold * mid * 0.92;
+    const threshY_bot = mid + threshold * mid * 0.92;
+
+    ctx.save();
+    ctx.setLineDash([4, 4]);
+    ctx.strokeStyle = 'rgba(255, 170, 0, 0.45)';
+    ctx.lineWidth = 1;
+
+    // Top threshold line
+    ctx.beginPath();
+    ctx.moveTo(0, threshY_top);
+    ctx.lineTo(w, threshY_top);
+    ctx.stroke();
+
+    // Bottom threshold line
+    ctx.beginPath();
+    ctx.moveTo(0, threshY_bot);
+    ctx.lineTo(w, threshY_bot);
+    ctx.stroke();
+
+    // Subtle fill between threshold lines and center
+    ctx.setLineDash([]);
+    ctx.fillStyle = 'rgba(255, 170, 0, 0.03)';
+    ctx.fillRect(0, threshY_top, w, mid - threshY_top);
+    ctx.fillRect(0, mid, w, threshY_bot - mid);
+
+    ctx.restore();
+  }
+
+  // ── Hit Point Detection (onset/peak detection) ──
+  _detectHits() {
+    if (!this.channelData) return;
+
+    const threshold = parseInt(this.thresholdSlider.value) / 100;
+    const data = this.channelData;
+    const len = data.length;
+
+    // Compute envelope with small analysis window
+    const windowSize = Math.floor(this.sampleRate * 0.01); // 10ms windows
+    const hopSize = Math.floor(windowSize / 2);
+    const envelope = [];
+
+    for (let i = 0; i < len; i += hopSize) {
+      const end = Math.min(i + windowSize, len);
+      let sumSq = 0;
+      for (let j = i; j < end; j++) sumSq += data[j] * data[j];
+      envelope.push({ pos: (i + windowSize / 2) / len, rms: Math.sqrt(sumSq / (end - i)) });
+    }
+
+    // Find peak RMS for normalization
+    let maxRms = 0;
+    for (const e of envelope) if (e.rms > maxRms) maxRms = e.rms;
+    if (maxRms === 0) maxRms = 1;
+
+    // Detect onsets: rising edges above threshold
+    const hits = [];
+    const minGapSamples = Math.floor(this.sampleRate * 0.05); // 50ms minimum gap
+    const minGapFrac = minGapSamples / len;
+    let wasAbove = false;
+
+    for (let i = 1; i < envelope.length; i++) {
+      const normRms = envelope[i].rms / maxRms;
+      const prevNorm = envelope[i - 1].rms / maxRms;
+      const isAbove = normRms >= threshold;
+      const isRising = normRms > prevNorm * 1.2; // 20% rise = onset
+
+      if (isAbove && isRising && !wasAbove) {
+        // Check minimum gap from last hit
+        if (hits.length === 0 || (envelope[i].pos - hits[hits.length - 1]) > minGapFrac) {
+          hits.push(envelope[i].pos);
+        }
+      }
+      wasAbove = isAbove;
+    }
+
+    this.hitPoints = hits;
+    this._renderHitPoints();
+    this.hitCountEl.textContent = hits.length;
+  }
+
+  _renderHitPoints() {
+    this.hitpointsEl.innerHTML = '';
+    for (const pos of this.hitPoints) {
+      const el = document.createElement('div');
+      el.className = 'we-hitpoint';
+      el.style.left = (pos * 100) + '%';
+      this.hitpointsEl.appendChild(el);
+    }
+  }
+
+  // ── Marker positioning ──
+  _updateMarkerPositions() {
+    const w = this.displayWidth || this.wrap.getBoundingClientRect().width;
+    this.markerStart.style.left = (this.startPos * 100) + '%';
+    this.markerEnd.style.left = (this.endPos * 100) + '%';
+    this.markerEnd.style.right = 'auto';
+
+    // Update outside-region shading
+    this.regionLeft.style.width = (this.startPos * 100) + '%';
+    this.regionRight.style.width = ((1 - this.endPos) * 100) + '%';
+
+    this._updateTimeReadouts();
+    this.onRegionChange?.();
+  }
+
+  _updateTimeReadouts() {
+    if (!this.duration) return;
+    const startTime = this.startPos * this.duration;
+    const endTime = this.endPos * this.duration;
+    const dur = endTime - startTime;
+    document.getElementById('weTimeStart').textContent = startTime.toFixed(3) + 's';
+    document.getElementById('weTimeEnd').textContent = endTime.toFixed(3) + 's';
+    document.getElementById('weTimeDur').textContent = dur.toFixed(3) + 's';
+  }
+
+  // Get start/end in seconds for audio engine
+  getRegion() {
+    return {
+      start: this.startPos * this.duration,
+      end: this.endPos * this.duration,
+      startNorm: this.startPos,
+      endNorm: this.endPos
+    };
+  }
+
+  setRegion(startNorm = 0, endNorm = 1) {
+    const s = Math.max(0, Math.min(0.995, Number(startNorm) || 0));
+    const e = Math.max(s + 0.005, Math.min(1, Number(endNorm) || 1));
+    this.startPos = s;
+    this.endPos = e;
+    this._updateMarkerPositions();
+  }
+
+  getState() {
+    return {
+      startNorm: this.startPos,
+      endNorm: this.endPos,
+      threshold: parseInt(this.thresholdSlider.value, 10) || 30
+    };
+  }
+
+  applyState(state = {}) {
+    if (typeof state.threshold === 'number') {
+      const t = Math.max(1, Math.min(95, Math.round(state.threshold)));
+      this.thresholdSlider.value = String(t);
+      this.thresholdVal.textContent = `${t}%`;
+      this._detectHits();
+      if (this.channelData) this._drawWaveform();
+    }
+    if (typeof state.startNorm === 'number' || typeof state.endNorm === 'number') {
+      this.setRegion(state.startNorm ?? this.startPos, state.endNorm ?? this.endPos);
+    }
+  }
+
+  // ── Playhead animation ──
+  startPlayhead(startFrac, endFrac, durationSec) {
+    this.playhead.classList.add('active');
+    const startTime = performance.now();
+    const animate = () => {
+      const elapsed = (performance.now() - startTime) / 1000;
+      const regionDur = durationSec;
+      const loopPos = (elapsed % regionDur) / regionDur;
+      const frac = startFrac + loopPos * (endFrac - startFrac);
+      this.playhead.style.left = (frac * 100) + '%';
+      this._playheadRAF = requestAnimationFrame(animate);
+    };
+    animate();
+  }
+
+  stopPlayhead() {
+    this.playhead.classList.remove('active');
+    if (this._playheadRAF) cancelAnimationFrame(this._playheadRAF);
+  }
+
+  // ── Event Binding ──
+  _bindEvents() {
+    // Marker dragging
+    this.markerStart.addEventListener('mousedown', (e) => this._onMarkerDown(e, 'start'));
+    this.markerEnd.addEventListener('mousedown', (e) => this._onMarkerDown(e, 'end'));
+    this.markerStart.addEventListener('touchstart', (e) => { e.preventDefault(); this._onMarkerDown(e, 'start'); }, {passive:false});
+    this.markerEnd.addEventListener('touchstart', (e) => { e.preventDefault(); this._onMarkerDown(e, 'end'); }, {passive:false});
+
+    document.addEventListener('mousemove', (e) => this._onMarkerMove(e));
+    document.addEventListener('touchmove', (e) => this._onMarkerMove(e), {passive:false});
+    document.addEventListener('mouseup', () => this._onMarkerUp());
+    document.addEventListener('touchend', () => this._onMarkerUp());
+
+    // Threshold slider
+    this.thresholdSlider.addEventListener('input', () => {
+      this.thresholdVal.textContent = this.thresholdSlider.value + '%';
+      this._detectHits();
+      if (this.channelData) this._drawWaveform(); // redraw threshold line
+      this.onRegionChange?.();
+    });
+
+    // Click on canvas to set playhead / create hit point
+    this.wrap.addEventListener('dblclick', (e) => {
+      if (!this.channelData) return;
+      const rect = this.wrap.getBoundingClientRect();
+      const frac = (e.clientX - rect.left) / rect.width;
+      // Add manual hit point
+      this.hitPoints.push(frac);
+      this.hitPoints.sort((a, b) => a - b);
+      this._renderHitPoints();
+      this.hitCountEl.textContent = this.hitPoints.length;
+    });
+  }
+
+  _onMarkerDown(e, which) {
+    this.dragging = which;
+    const marker = which === 'start' ? this.markerStart : this.markerEnd;
+    marker.classList.add('dragging');
+    const clientX = e.clientX ?? e.touches?.[0]?.clientX;
+    const rect = this.wrap.getBoundingClientRect();
+    const currentFrac = which === 'start' ? this.startPos : this.endPos;
+    this.dragOffsetX = clientX - (rect.left + currentFrac * rect.width);
+  }
+
+  _onMarkerMove(e) {
+    if (!this.dragging) return;
+    e.preventDefault?.();
+    const clientX = e.clientX ?? e.touches?.[0]?.clientX;
+    const rect = this.wrap.getBoundingClientRect();
+    let frac = (clientX - rect.left - this.dragOffsetX) / rect.width;
+    frac = Math.max(0, Math.min(1, frac));
+
+    if (this.dragging === 'start') {
+      this.startPos = Math.min(frac, this.endPos - 0.005);
+    } else {
+      this.endPos = Math.max(frac, this.startPos + 0.005);
+    }
+    this._updateMarkerPositions();
+  }
+
+  _onMarkerUp() {
+    if (this.dragging) {
+      const marker = this.dragging === 'start' ? this.markerStart : this.markerEnd;
+      marker.classList.remove('dragging');
+      this.dragging = null;
+    }
+  }
+}
+
+
+// ═══════════════════════════════════════════════════════
+// UI CONTROLLER
+// ═══════════════════════════════════════════════════════
+
+class PedalUI {
+  constructor() {
+    this.engine = new AnalogDelayEngine();
+    this.midi = null;
+    this.waveformEditor = null; // initialized after DOM ready
+    this.activeKnob = null;
+    this.startY = 0;
+    this.startValue = 0;
+    this.sensitivity = 0.004;
+    this.bypassState = 'off'; // off / normal / spillover
+    this.bypassHoldTimer = null;
+    this.waveforms = ['sine', 'triangle', 'square', 'sawtooth', 'ramp', 'samplehold'];
+    this.currentWfIndex = 0;
+
+    this.schemaVersion = 4;
+    this.sessionStorageKey = 'mf104m.session.v1';
+    this.presetsStorageKey = 'mf104m.presets.v1';
+    this._autoSaveTimer = null;
+    this._restoringState = false;
+    this.activePresetName = '';
+    this.slotAState = null;
+    this.slotBState = null;
+    this.activeCompareSlot = 'A';
+
+    // Bind sample loader early so first click works (no init dependency)
+    this._bindSampleLoader();
+  }
+
+  async init() {
+    await this.engine.init();
+    this.waveformEditor = new WaveformEditor();
+
+    // Initialize MIDI engine
+    this.midi = new MIDIEngine(this.engine, (param, value) => this._onMIDIParam(param, value));
+    await this.midi.init();
+    this._bindMIDI();
+
+    // Generate scale marks
+    document.querySelectorAll('.knob-group').forEach(g => {
+      this._generateScaleMarks(g);
+      this._setInitialRotation(g);
+    });
+
+    this._bindKnobs();
+    this._bindSwitches();
+    this._bindFootswitches();
+    this._bindAudioIO();
+    this._bindWaveformSelector();
+    this._bindPresetUI();
+
+    this.waveformEditor.onRegionChange = () => this._scheduleAutoSave();
+    await this._restoreLastSession();
+    this._refreshPresetList();
+    this._captureCompareSlots();
+
+    this._startMeterUI();
+    this._startLedAnimations();
+  }
+
+  // ── SCALE MARKS ──
+  _generateScaleMarks(group) {
+    const scale = group.querySelector('.knob-scale');
+    if (!scale) return;
+    const isSmall = group.classList.contains('small');
+    const isLarge = group.classList.contains('large');
+    const cX = isLarge ? 46 : isSmall ? 31 : 39;
+    const cY = cX;
+    const r = isLarge ? 44 : isSmall ? 29 : 37;
+    const numMarks = 11;
+
+    for (let i = 0; i < numMarks; i++) {
+      const angle = -135 + (i / (numMarks - 1)) * 270;
+      const rad = (angle - 90) * Math.PI / 180;
+      const nx = cX + (r + 2) * Math.cos(rad);
+      const ny = cY + (r + 2) * Math.sin(rad);
+      const num = document.createElement('span');
+      num.className = 'scale-number';
+      num.textContent = i;
+      num.style.left = nx + 'px';
+      num.style.top = ny + 'px';
+      scale.appendChild(num);
+    }
+  }
+
+  _setInitialRotation(group) {
+    const min = parseFloat(group.dataset.min);
+    const max = parseFloat(group.dataset.max);
+    const val = parseFloat(group.dataset.value);
+    const isLog = group.dataset.log === 'true';
+    let norm = isLog
+      ? (Math.log(val) - Math.log(min)) / (Math.log(max) - Math.log(min))
+      : (val - min) / (max - min);
+    const rot = -135 + norm * 270;
+    group.querySelector('.knob').style.transform = `rotate(${rot}deg)`;
+  }
+
+  // ── KNOB BINDING ──
+  _bindKnobs() {
+    const onDown = (e, wrapper) => {
+      e.preventDefault();
+      const group = wrapper.closest('.knob-group');
+      this.activeKnob = group;
+      this.startY = e.clientY ?? e.touches?.[0]?.clientY;
+      this.startValue = parseFloat(group.dataset.value);
+    };
+
+    document.querySelectorAll('.knob-wrapper').forEach(w => {
+      w.addEventListener('mousedown', e => onDown(e, w));
+      w.addEventListener('touchstart', e => { e.preventDefault(); onDown(e, w); }, {passive:false});
+      w.addEventListener('wheel', e => {
+        e.preventDefault();
+        const g = w.closest('.knob-group');
+        const min = parseFloat(g.dataset.min), max = parseFloat(g.dataset.max);
+        const step = (max - min) * 0.015;
+        const cur = parseFloat(g.dataset.value);
+        const d = e.deltaY > 0 ? -step : step;
+        this._setKnobValue(g, Math.max(min, Math.min(max, cur + d)));
+      }, {passive:false});
+      w.addEventListener('dblclick', () => {
+        const g = w.closest('.knob-group');
+        const min = parseFloat(g.dataset.min), max = parseFloat(g.dataset.max);
+        this._setKnobValue(g, (min + max) / 2);
+      });
+    });
+
+    const onMove = (e) => {
+      if (!this.activeKnob) return;
+      e.preventDefault();
+      const y = e.clientY ?? e.touches?.[0]?.clientY;
+      const g = this.activeKnob;
+      const min = parseFloat(g.dataset.min), max = parseFloat(g.dataset.max);
+      const isLog = g.dataset.log === 'true';
+      const dy = this.startY - y;
+
+      let newVal;
+      if (isLog) {
+        const lMin = Math.log(min), lMax = Math.log(max);
+        const lStart = Math.log(this.startValue);
+        newVal = Math.exp(Math.max(lMin, Math.min(lMax, lStart + dy * (lMax - lMin) * this.sensitivity)));
+      } else {
+        newVal = this.startValue + dy * (max - min) * this.sensitivity;
+      }
+      this._setKnobValue(g, Math.max(min, Math.min(max, newVal)));
+    };
+
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('touchmove', onMove, {passive:false});
+    document.addEventListener('mouseup', () => { this.activeKnob = null; document.body.style.cursor=''; });
+    document.addEventListener('touchend', () => { this.activeKnob = null; });
+  }
+
+  _setKnobValue(group, value) {
+    const min = parseFloat(group.dataset.min), max = parseFloat(group.dataset.max);
+    const isLog = group.dataset.log === 'true';
+    const param = group.dataset.param;
+    group.dataset.value = value;
+
+    let norm = isLog
+      ? (Math.log(value) - Math.log(min)) / (Math.log(max) - Math.log(min))
+      : (value - min) / (max - min);
+
+    const rot = -135 + norm * 270;
+    group.querySelector('.knob').style.transform = `rotate(${rot}deg)`;
+
+    // Update display
+    const disp = group.querySelector('.knob-value');
+    if (disp) {
+      if (param === 'time') {
+        const ms = this.engine._getDelayTimeMs.call({params:{...this.engine.params, time: value}});
+        disp.textContent = ms < 100 ? ms.toFixed(0) + 'ms' : (ms/1000).toFixed(2) + 's';
+      } else if (param === 'lfoRate') {
+        disp.textContent = value < 1 ? value.toFixed(2) + ' Hz' : value.toFixed(1) + ' Hz';
+      } else if (isLog) {
+        disp.textContent = value >= 1000 ? (value/1000).toFixed(1)+'k' : Math.round(value);
+      } else {
+        disp.textContent = value.toFixed(1);
+      }
+    }
+
+    // Push to engine
+    this.engine.setParam(param, value);
+    this._scheduleAutoSave();
+  }
+
+  // ── RANGE SWITCH ──
+  _bindSwitches() {
+    const sw = document.getElementById('rangeSwitch');
+    sw.addEventListener('click', () => {
+      const isLong = sw.classList.toggle('right');
+      sw.dataset.state = isLong ? 'long' : 'short';
+      document.getElementById('lbl-short').classList.toggle('active', !isLong);
+      document.getElementById('lbl-long').classList.toggle('active', isLong);
+      this.engine.setParam('range', isLong ? 'long' : 'short');
+      this._scheduleAutoSave();
+
+      // Update time display
+      const tg = document.getElementById('knob-time');
+      const val = parseFloat(tg.dataset.value);
+      const disp = tg.querySelector('.knob-value');
+      const range = isLong ? [80,800] : [40,400];
+      const ms = range[0] + val * (range[1] - range[0]);
+      disp.textContent = ms < 100 ? ms.toFixed(0) + 'ms' : (ms/1000).toFixed(2) + 's';
+    });
+  }
+
+  // ── FOOTSWITCHES ──
+  _bindFootswitches() {
+    // BYPASS — tap = toggle, hold = switch normal/spillover
+    const bypassBtn = document.getElementById('bypassBtn');
+    const bypassLed = document.getElementById('bypassLed');
+
+    bypassBtn.addEventListener('mousedown', () => {
+      this.bypassHoldTimer = setTimeout(() => {
+        // Long press: toggle spillover mode
+        if (this.bypassState === 'normal') {
+          this.bypassState = 'spillover';
+          this.engine.setBypass('spillover');
+          bypassLed.className = 'led amber';
+          this._scheduleAutoSave();
+        } else if (this.bypassState === 'spillover') {
+          this.bypassState = 'normal';
+          this.engine.setBypass('on');
+          bypassLed.className = 'led green';
+          this._scheduleAutoSave();
+        }
+        this.bypassHoldTimer = 'held';
+      }, 600);
+    });
+
+    bypassBtn.addEventListener('mouseup', () => {
+      if (this.bypassHoldTimer === 'held') {
+        this.bypassHoldTimer = null;
+        return;
+      }
+      clearTimeout(this.bypassHoldTimer);
+      this.bypassHoldTimer = null;
+
+      // Short press: toggle on/off
+      if (this.bypassState === 'off') {
+        this.bypassState = 'normal';
+        this.engine.setBypass('on');
+        bypassLed.className = 'led green';
+      } else {
+        this.bypassState = 'off';
+        this.engine.setBypass('off');
+        bypassLed.className = 'led red';
+        this._scheduleAutoSave();
+      }
+    });
+
+    // TAP TEMPO — tap for tempo, hold to switch target
+    const tapBtn = document.getElementById('tapTempoBtn');
+    let tapHold = null;
+
+    tapBtn.addEventListener('mousedown', () => {
+      tapHold = setTimeout(() => {
+        const target = this.engine.toggleTapTarget();
+        const timeLed = document.getElementById('timeLed');
+        const lfoLed = document.getElementById('lfoLed');
+        if (target === 'time') {
+          timeLed.className = 'led green led-flashing';
+          setTimeout(() => { timeLed.className = 'led dim-red'; }, 1500);
+        } else {
+          lfoLed.className = 'led green led-flashing';
+          setTimeout(() => { lfoLed.className = 'led dim-red'; }, 1500);
+        }
+        tapHold = 'held';
+      }, 1000);
+    });
+
+    tapBtn.addEventListener('mouseup', () => {
+      if (tapHold === 'held') { tapHold = null; return; }
+      clearTimeout(tapHold);
+      tapHold = null;
+
+      const result = this.engine.tap();
+      if (result) {
+        if (result.target === 'time') {
+          // Update time knob UI
+          const tg = document.getElementById('knob-time');
+          tg.dataset.value = result.normalized;
+          this._setKnobValue(tg, result.normalized);
+          document.getElementById('timeLed').className = 'led green';
+          setTimeout(() => {
+            document.getElementById('timeLed').className = 'led green led-flashing';
+          }, 100);
+        } else {
+          // Update LFO rate knob UI
+          const lg = document.getElementById('knob-lfoRate');
+          lg.dataset.value = result.hz;
+          this._setKnobValue(lg, result.hz);
+          document.getElementById('lfoLed').className = 'led green';
+        }
+      }
+    });
+  }
+
+  // ── SAMPLE LOADER ──
+  _bindSampleLoader() {
+    const loadBtn = document.getElementById('loadSampleBtn');
+    const nameEl = document.getElementById('sampleName');
+    const playBtn = document.getElementById('playSampleBtn');
+    const stopBtn = document.getElementById('stopSampleBtn');
+    const recBtn = document.getElementById('recordBtn');
+
+    const onSampleLoaded = (name) => {
+      nameEl.textContent = name;
+      nameEl.classList.add('loaded');
+      // Draw waveform in editor
+      if (this.waveformEditor && this.engine.sampleBuffer) {
+        this.waveformEditor.setBuffer(this.engine.sampleBuffer);
+      }
+    };
+
+    loadBtn.addEventListener('click', async () => {
+      try {
+        await this.engine.init();
+        if (!this.waveformEditor) this.waveformEditor = new WaveformEditor();
+
+        // Try Electron IPC first, fallback to file input
+        if (window.pedalAPI?.openSampleDialog) {
+          console.log('[MF-104M] Using Electron IPC for sample load');
+          const result = await window.pedalAPI.openSampleDialog();
+          if (!result) { console.log('[MF-104M] Dialog cancelled'); return; }
+
+          let arrayBuffer;
+          if (result.base64) {
+            // Decode base64 string to ArrayBuffer (reliable through IPC + contextBridge)
+            console.log('[MF-104M] Decoding base64, length:', result.base64.length);
+            const binaryString = atob(result.base64);
+            const bytes = new Uint8Array(binaryString.length);
+            for (let i = 0; i < binaryString.length; i++) {
+              bytes[i] = binaryString.charCodeAt(i);
+            }
+            arrayBuffer = bytes.buffer;
+          } else if (result.buffer) {
+            // Legacy: handle raw buffer if present
+            console.log('[MF-104M] Using raw buffer, type:', typeof result.buffer, 'isArray:', Array.isArray(result.buffer));
+            if (result.buffer instanceof ArrayBuffer) {
+              arrayBuffer = result.buffer;
+            } else if (Array.isArray(result.buffer)) {
+              arrayBuffer = new Uint8Array(result.buffer).buffer;
+            } else {
+              arrayBuffer = new Uint8Array(Object.values(result.buffer)).buffer;
+            }
+          } else {
+            console.error('[MF-104M] No buffer or base64 in IPC result:', Object.keys(result));
+            return;
+          }
+
+          console.log('[MF-104M] ArrayBuffer size:', arrayBuffer.byteLength);
+          await this.engine.loadSample(arrayBuffer);
+          onSampleLoaded(result.name);
+          console.log('[MF-104M] Sample loaded:', result.name);
+        } else {
+          // Fallback: browser file input
+          console.log('[MF-104M] Using browser file input fallback');
+          const input = document.createElement('input');
+          input.type = 'file';
+          input.accept = 'audio/*';
+          input.onchange = async (e) => {
+            try {
+              const file = e.target.files[0];
+              if (!file) return;
+              const buf = await file.arrayBuffer();
+              console.log('[MF-104M] File buffer size:', buf.byteLength);
+              await this.engine.loadSample(buf);
+              onSampleLoaded(file.name);
+              console.log('[MF-104M] Sample loaded:', file.name);
+            } catch (err) {
+              console.error('[MF-104M] File load error:', err);
+              nameEl.textContent = 'Error: ' + err.message;
+              nameEl.classList.remove('loaded');
+            }
+          };
+          input.click();
+        }
+      } catch (err) {
+        console.error('[MF-104M] Sample load error:', err);
+        nameEl.textContent = 'Error: ' + err.message;
+        nameEl.classList.remove('loaded');
+      }
+    });
+
+    playBtn.addEventListener('click', async () => {
+      await this.engine.init();
+      if (this.engine.inputMode === 'live') return;
+      if (!this.engine.sampleBuffer) return;
+      if (!this.waveformEditor) this.waveformEditor = new WaveformEditor();
+
+      // Auto-enable bypass if off
+      if (this.bypassState === 'off') {
+        this.bypassState = 'normal';
+        this.engine.setBypass('on');
+        document.getElementById('bypassLed').className = 'led green';
+      }
+
+      // Get region from waveform editor markers
+      const region = this.waveformEditor.getRegion();
+      this.engine.playSample(region.start, region.end);
+
+      // Start playhead animation
+      const regionDur = region.end - region.start;
+      this.waveformEditor.startPlayhead(region.startNorm, region.endNorm, regionDur);
+    });
+
+    stopBtn.addEventListener('click', () => {
+      this.engine.stopSample();
+      if (this.waveformEditor) this.waveformEditor.stopPlayhead();
+    });
+
+    recBtn.addEventListener('click', async () => {
+      await this.engine.init();
+      const isRecording = recBtn.classList.contains('recording');
+      if (!isRecording) {
+        const started = this.engine.startOutputRecording();
+        if (!started) return;
+        recBtn.classList.add('recording');
+        recBtn.title = 'Stop recording';
+      } else {
+        const blob = await this.engine.stopOutputRecording();
+        recBtn.classList.remove('recording');
+        recBtn.title = 'Record output';
+        if (!blob) return;
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `mf104m-output-${Date.now()}.webm`;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1500);
+      }
+    });
+  }
+
+  // ── AUDIO I/O (Live input + hardware routing) ──
+  _bindAudioIO() {
+    const modeBtn = document.getElementById('ioModeBtn');
+    const inSel = document.getElementById('audioInputSelect');
+    const outSel = document.getElementById('audioOutputSelect');
+    const ioStatus = document.getElementById('ioStatus');
+    const ioGain = document.getElementById('ioInputGain');
+    const ioBlend = document.getElementById('ioBlend');
+    const ioLatency = document.getElementById('ioLatency');
+
+    const updateLatency = () => {
+      if (!this.engine.ctx) {
+        ioLatency.textContent = 'Latency --';
+        return;
+      }
+      const base = this.engine.ctx.baseLatency || 0;
+      const out = this.engine.ctx.outputLatency || 0;
+      const totalMs = (base + out) * 1000;
+      ioLatency.textContent = `Latency ${totalMs > 0 ? totalMs.toFixed(1) + 'ms' : '--'}`;
+    };
+
+    const setStatus = (msg, ok = false) => {
+      ioStatus.textContent = msg;
+      ioStatus.style.color = ok ? 'var(--led-green)' : 'var(--text-dim)';
+    };
+
+    const refreshDevices = async () => {
+      if (!navigator.mediaDevices?.enumerateDevices) return;
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const inputs = devices.filter(d => d.kind === 'audioinput');
+      const outputs = devices.filter(d => d.kind === 'audiooutput');
+
+      inSel.innerHTML = '<option value="">Input: Default</option>';
+      for (const d of inputs) {
+        const opt = document.createElement('option');
+        opt.value = d.deviceId;
+        opt.textContent = `Input: ${d.label || 'Device'}`;
+        inSel.appendChild(opt);
+      }
+
+      outSel.innerHTML = '<option value="">Output: System</option>';
+      for (const d of outputs) {
+        const opt = document.createElement('option');
+        opt.value = d.deviceId;
+        opt.textContent = `Output: ${d.label || 'Device'}`;
+        outSel.appendChild(opt);
+      }
+
+      if (this.engine.inputDeviceId) inSel.value = this.engine.inputDeviceId;
+      if (this.engine.outputDeviceId) outSel.value = this.engine.outputDeviceId;
+    };
+
+    modeBtn.addEventListener('click', async () => {
+      await this.engine.init();
+      const nextMode = this.engine.inputMode === 'sample' ? 'live' : this.engine.inputMode === 'live' ? 'hybrid' : 'sample';
+      try {
+        if (nextMode === 'sample') {
+          await this.engine.disconnectLiveInput();
+          this.engine.setInputMode('sample');
+          modeBtn.textContent = 'Mode: Sample';
+          setStatus('Sample playback mode');
+        } else {
+          if (!this.engine.liveInputSource) await this.engine.connectLiveInput(inSel.value || '');
+          this.engine.setInputMode(nextMode);
+          modeBtn.textContent = nextMode === 'live' ? 'Mode: Live In' : 'Mode: Hybrid';
+          setStatus(nextMode === 'live' ? 'Live input armed' : 'Hybrid input mix', true);
+        }
+      } catch (err) {
+        setStatus('Live input denied');
+        this.engine.setInputMode('sample');
+        modeBtn.textContent = 'Mode: Sample';
+      }
+      ioBlend.value = String(this.engine.inputBlend);
+      await refreshDevices();
+      updateLatency();
+      this._scheduleAutoSave();
+    });
+
+    ioGain.addEventListener('input', () => {
+      this.engine.setLiveInputGain(ioGain.value);
+      this.engine._updateInputBlend();
+      this._scheduleAutoSave();
+    });
+
+    ioBlend.addEventListener('input', () => {
+      const blend = this.engine.setInputBlend(ioBlend.value);
+      if (blend <= 0.01) this.engine.inputMode = 'sample';
+      else if (blend >= 0.99) this.engine.inputMode = 'live';
+      else this.engine.inputMode = 'hybrid';
+      modeBtn.textContent = this.engine.inputMode === 'sample' ? 'Mode: Sample' : this.engine.inputMode === 'live' ? 'Mode: Live In' : 'Mode: Hybrid';
+      if (this.engine.inputMode !== 'sample' && !this.engine.liveInputSource) {
+        this.engine.connectLiveInput(inSel.value || '').catch(() => setStatus('Live input denied'));
+      }
+      this._scheduleAutoSave();
+    });
+
+    inSel.addEventListener('change', async () => {
+      if (this.engine.inputMode !== 'live') {
+        this.engine.inputDeviceId = inSel.value || '';
+        this._scheduleAutoSave();
+        return;
+      }
+      try {
+        await this.engine.connectLiveInput(inSel.value || '');
+        setStatus('Live input routed', true);
+      } catch (err) {
+        setStatus('Input switch failed');
+      }
+      this._scheduleAutoSave();
+    });
+
+    outSel.addEventListener('change', async () => {
+      try {
+        const ok = await this.engine.setOutputDevice(outSel.value || '');
+        setStatus(ok ? 'Output routed' : 'Output routing unsupported', ok);
+      } catch (err) {
+        setStatus('Output switch failed');
+      }
+      updateLatency();
+      this._scheduleAutoSave();
+    });
+
+    navigator.mediaDevices?.addEventListener?.('devicechange', refreshDevices);
+    refreshDevices();
+    ioGain.value = String(this.engine.liveInputGain || 1);
+    ioBlend.value = String(this.engine.inputBlend || 1);
+    updateLatency();
+    setInterval(updateLatency, 1200);
+  }
+
+  // ── WAVEFORM SELECTOR ──
+  _bindWaveformSelector() {
+    const selector = document.getElementById('waveformSelector');
+    const knob = document.getElementById('wfKnob');
+    const icons = selector.querySelectorAll('.waveform-icon');
+
+    // Click cycles through waveforms
+    selector.addEventListener('click', () => {
+      this.currentWfIndex = (this.currentWfIndex + 1) % this.waveforms.length;
+      const wf = this.waveforms[this.currentWfIndex];
+
+      // Update icons
+      icons.forEach(ic => ic.classList.toggle('active', ic.dataset.wf === wf));
+
+      // Rotate knob pointer (6 positions around 270°)
+      const rot = -135 + (this.currentWfIndex / 5) * 270;
+      knob.style.transform = `rotate(${rot}deg)`;
+
+      this.engine.setParam('lfoWaveform', wf);
+      this._scheduleAutoSave();
+    });
+  }
+
+  // ── MIDI PANEL BINDING ──
+  _bindMIDI() {
+    // Toggle panel open/close
+    const header = document.getElementById('midiHeader');
+    const panel = document.getElementById('midiPanel');
+    const toggleBtn = document.getElementById('midiToggleBtn');
+
+    header.addEventListener('click', (e) => {
+      // Don't toggle if clicking a select inside
+      if (e.target.tagName === 'SELECT' || e.target.tagName === 'BUTTON') return;
+      panel.classList.toggle('open');
+    });
+    toggleBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      panel.classList.toggle('open');
+    });
+
+    // Device selection
+    document.getElementById('midiInputSelect').addEventListener('change', (e) => {
+      this.midi.selectInput(e.target.value);
+    });
+    document.getElementById('midiOutputSelect').addEventListener('change', (e) => {
+      this.midi.selectOutput(e.target.value);
+    });
+
+    // Channel selection
+    document.getElementById('midiChannelSelect').addEventListener('change', (e) => {
+      this.midi.channel = parseInt(e.target.value);
+      this._scheduleAutoSave();
+    });
+
+    // Omni mode
+    const omniBtn = document.getElementById('midiOmniBtn');
+    omniBtn.addEventListener('click', () => {
+      this.midi.omniMode = !this.midi.omniMode;
+      omniBtn.textContent = this.midi.omniMode ? 'On' : 'Off';
+      omniBtn.classList.toggle('active-green', this.midi.omniMode);
+      this._scheduleAutoSave();
+    });
+
+    // CC Learn
+    const learnBtn = document.getElementById('midiLearnBtn');
+    learnBtn.addEventListener('click', () => {
+      if (this.midi.learning) {
+        this.midi.cancelLearn();
+      } else {
+        learnBtn.classList.add('active');
+        // Enter learn mode — next CC grid click selects target
+        this._midiLearnMode = true;
+      }
+    });
+
+    // CC Grid: click to start learning
+    document.querySelectorAll('.midi-cc-item').forEach(item => {
+      item.addEventListener('click', () => {
+        if (this._midiLearnMode || learnBtn.classList.contains('active')) {
+          const param = item.dataset.ccParam;
+          this.midi.startLearn(param);
+          this._scheduleAutoSave();
+          learnBtn.classList.add('active');
+          this._midiLearnMode = false;
+        }
+      });
+    });
+
+    // Clock sync toggle
+    const clockBtn = document.getElementById('midiClockSyncBtn');
+    clockBtn.addEventListener('click', () => {
+      this.midi.clockSyncEnabled = !this.midi.clockSyncEnabled;
+      clockBtn.classList.toggle('active-pink', this.midi.clockSyncEnabled);
+      clockBtn.textContent = this.midi.clockSyncEnabled
+        ? `Clock Sync: ${this.midi.clockSyncTarget.toUpperCase()}`
+        : 'Clock Sync';
+      this._scheduleAutoSave();
+    });
+
+    const timeQuantSel = document.getElementById('midiTimeQuantSelect');
+    timeQuantSel.addEventListener('change', () => {
+      this.midi.timeSyncDivision = parseFloat(timeQuantSel.value) || 1;
+      this._scheduleAutoSave();
+    });
+
+    // Note mode cycle
+    const noteBtn = document.getElementById('midiNoteModeBtn');
+    noteBtn.addEventListener('click', () => {
+      const modes = ['off', 'absolute', 'relative'];
+      const idx = modes.indexOf(this.midi.noteMode);
+      this.midi.noteMode = modes[(idx + 1) % 3];
+      const label = this.midi.noteMode.charAt(0).toUpperCase() + this.midi.noteMode.slice(1);
+      noteBtn.textContent = `Note Mode: ${label}`;
+      noteBtn.classList.toggle('active', this.midi.noteMode !== 'off');
+      this._scheduleAutoSave();
+    });
+
+    // Panic button
+    document.getElementById('midiPanicBtn').addEventListener('click', () => {
+      this.midi.panic();
+    });
+  }
+
+  // ── MIDI → UI Param Callback ──
+  _onMIDIParam(param, value) {
+    switch(param) {
+      case 'time': {
+        const g = document.getElementById('knob-time');
+        g.dataset.value = value;
+        this._setKnobValue(g, value);
+        break;
+      }
+      case 'feedback': {
+        const g = document.getElementById('knob-feedback');
+        g.dataset.value = value;
+        this._setKnobValue(g, value);
+        break;
+      }
+      case 'mix': {
+        const g = document.getElementById('knob-mix');
+        g.dataset.value = value;
+        this._setKnobValue(g, value);
+        break;
+      }
+      case 'output': {
+        const g = document.getElementById('knob-output');
+        g.dataset.value = value;
+        this._setKnobValue(g, value);
+        break;
+      }
+      case 'drive': {
+        const g = document.getElementById('knob-drive');
+        g.dataset.value = value;
+        this._setKnobValue(g, value);
+        break;
+      }
+      case 'lfoRate': {
+        const g = document.getElementById('knob-lfoRate');
+        g.dataset.value = value;
+        this._setKnobValue(g, value);
+        break;
+      }
+      case 'lfoAmount': {
+        const g = document.getElementById('knob-lfoAmount');
+        g.dataset.value = value;
+        this._setKnobValue(g, value);
+        break;
+      }
+      case 'lfoWaveform': {
+        const idx = this.waveforms.indexOf(value);
+        if (idx >= 0) {
+          this.currentWfIndex = idx;
+          const icons = document.querySelectorAll('.waveform-icon');
+          icons.forEach(ic => ic.classList.toggle('active', ic.dataset.wf === value));
+          const rot = -135 + (idx / 5) * 270;
+          document.getElementById('wfKnob').style.transform = `rotate(${rot}deg)`;
+        }
+        break;
+      }
+      case 'range': {
+        const sw = document.getElementById('rangeSwitch');
+        const isLong = value === 'long';
+        sw.classList.toggle('right', isLong);
+        sw.dataset.state = value;
+        document.getElementById('lbl-short').classList.toggle('active', !isLong);
+        document.getElementById('lbl-long').classList.toggle('active', isLong);
+        break;
+      }
+      case 'bypass': {
+        const bypassLed = document.getElementById('bypassLed');
+        if (value === 'on') {
+          this.bypassState = 'normal';
+          this.engine.setBypass('on');
+          bypassLed.className = 'led green';
+        } else {
+          this.bypassState = 'off';
+          this.engine.setBypass('off');
+          bypassLed.className = 'led red';
+        }
+        break;
+      }
+      case 'tap': {
+        if (value.target === 'time') {
+          const g = document.getElementById('knob-time');
+          g.dataset.value = value.normalized;
+          this._setKnobValue(g, value.normalized);
+        }
+        break;
+      }
+      case 'timeLed': {
+        document.getElementById('timeLed').className = `led ${value}`;
+        break;
+      }
+      case 'lfoLed': {
+        document.getElementById('lfoLed').className = `led ${value}`;
+        break;
+      }
+    }
+    if (param !== 'timeLed' && param !== 'lfoLed') this._scheduleAutoSave();
+  }
+
+
+  _defaultPresetName() {
+    return `Preset ${new Date().toLocaleString()}`;
+  }
+
+  _loadPresetLibrary() {
+    try { return JSON.parse(localStorage.getItem(this.presetsStorageKey) || '{}'); }
+    catch { return {}; }
+  }
+
+  _savePresetLibrary(lib) {
+    localStorage.setItem(this.presetsStorageKey, JSON.stringify(lib));
+  }
+
+  _captureState() {
+    const knobs = {};
+    document.querySelectorAll('.knob-group').forEach(g => { knobs[g.id] = parseFloat(g.dataset.value); });
+    return {
+      schemaVersion: this.schemaVersion,
+      savedAt: Date.now(),
+      knobValues: knobs,
+      rangeState: document.getElementById('rangeSwitch').dataset.state || 'short',
+      bypassState: this.bypassState,
+      waveform: this.waveforms[this.currentWfIndex] || 'sine',
+      midi: this.midi?.exportState?.() || {},
+      waveformEditor: this.waveformEditor?.getState?.() || null,
+      sampleName: document.getElementById('sampleName')?.textContent || '',
+      io: {
+        inputMode: this.engine.inputMode || 'sample',
+        inputDeviceId: this.engine.inputDeviceId || '',
+        outputDeviceId: this.engine.outputDeviceId || '',
+        liveInputGain: this.engine.liveInputGain || 1,
+        inputBlend: this.engine.inputBlend || 1
+      }
+    };
+  }
+
+  _migrateState(state) {
+    if (!state || typeof state !== 'object') return null;
+    if (!state.schemaVersion) state.schemaVersion = 1;
+    if (!state.io) state.io = { inputMode: 'sample', inputDeviceId: '', outputDeviceId: '', liveInputGain: 1, inputBlend: 1 };
+    if (typeof state.io.liveInputGain !== 'number') state.io.liveInputGain = 1;
+    if (typeof state.io.inputBlend !== 'number') state.io.inputBlend = state.io.inputMode === 'sample' ? 0 : state.io.inputMode === 'live' ? 1 : 0.5;
+    return state;
+  }
+
+  async _applyState(rawState) {
+    const state = this._migrateState(rawState);
+    if (!state) return;
+    this._restoringState = true;
+
+    if (state.knobValues) {
+      for (const [id, val] of Object.entries(state.knobValues)) {
+        const g = document.getElementById(id);
+        if (!g) continue;
+        const min = parseFloat(g.dataset.min), max = parseFloat(g.dataset.max);
+        const clamped = Math.max(min, Math.min(max, Number(val)));
+        if (Number.isFinite(clamped)) this._setKnobValue(g, clamped);
+      }
+    }
+
+    if (state.rangeState === 'short' || state.rangeState === 'long') {
+      const sw = document.getElementById('rangeSwitch');
+      const isLong = state.rangeState === 'long';
+      sw.classList.toggle('right', isLong);
+      sw.dataset.state = state.rangeState;
+      document.getElementById('lbl-short').classList.toggle('active', !isLong);
+      document.getElementById('lbl-long').classList.toggle('active', isLong);
+      this.engine.setParam('range', state.rangeState);
+    }
+
+    if (state.waveform) {
+      const idx = this.waveforms.indexOf(state.waveform);
+      if (idx >= 0) {
+        this.currentWfIndex = idx;
+        document.querySelectorAll('.waveform-icon').forEach(ic => ic.classList.toggle('active', ic.dataset.wf === state.waveform));
+        document.getElementById('wfKnob').style.transform = `rotate(${-135 + (idx / 5) * 270}deg)`;
+        this.engine.setParam('lfoWaveform', state.waveform);
+      }
+    }
+
+    if (state.bypassState) {
+      const bypassLed = document.getElementById('bypassLed');
+      this.bypassState = state.bypassState;
+      if (state.bypassState === 'off') {
+        this.engine.setBypass('off');
+        bypassLed.className = 'led red';
+      } else if (state.bypassState === 'spillover') {
+        this.engine.setBypass('spillover');
+        bypassLed.className = 'led amber';
+      } else {
+        this.engine.setBypass('on');
+        bypassLed.className = 'led green';
+      }
+    }
+
+    if (state.midi && this.midi) {
+      this.midi.importState(state.midi);
+      document.getElementById('midiChannelSelect').value = String(this.midi.channel);
+      const omniBtn = document.getElementById('midiOmniBtn');
+      omniBtn.textContent = this.midi.omniMode ? 'On' : 'Off';
+      omniBtn.classList.toggle('active-green', this.midi.omniMode);
+      const clockBtn = document.getElementById('midiClockSyncBtn');
+      clockBtn.classList.toggle('active-pink', this.midi.clockSyncEnabled);
+      clockBtn.textContent = this.midi.clockSyncEnabled ? `Clock Sync: ${this.midi.clockSyncTarget.toUpperCase()}` : 'Clock Sync';
+      const noteBtn = document.getElementById('midiNoteModeBtn');
+      const label = this.midi.noteMode.charAt(0).toUpperCase() + this.midi.noteMode.slice(1);
+      noteBtn.textContent = `Note Mode: ${label}`;
+      noteBtn.classList.toggle('active', this.midi.noteMode !== 'off');
+      const timeQuantSel = document.getElementById('midiTimeQuantSelect');
+      if (timeQuantSel) timeQuantSel.value = String(this.midi.timeSyncDivision);
+      this.midi._updateClockStatusUI();
+    }
+
+    if (state.waveformEditor && this.waveformEditor) {
+      this.waveformEditor.applyState(state.waveformEditor);
+    }
+
+    if (state.io) {
+      this.engine.inputDeviceId = state.io.inputDeviceId || '';
+      this.engine.outputDeviceId = state.io.outputDeviceId || '';
+      const inSel = document.getElementById('audioInputSelect');
+      const outSel = document.getElementById('audioOutputSelect');
+      const modeBtn = document.getElementById('ioModeBtn');
+      const ioGain = document.getElementById('ioInputGain');
+      const ioBlend = document.getElementById('ioBlend');
+      if (inSel) inSel.value = this.engine.inputDeviceId;
+      if (outSel) outSel.value = this.engine.outputDeviceId;
+      this.engine.setLiveInputGain(state.io.liveInputGain ?? 1);
+      this.engine.setInputBlend(state.io.inputBlend ?? (state.io.inputMode === 'sample' ? 0 : state.io.inputMode === 'live' ? 1 : 0.5));
+      this.engine.inputMode = state.io.inputMode || 'sample';
+      if (modeBtn) modeBtn.textContent = this.engine.inputMode === 'sample' ? 'Mode: Sample' : this.engine.inputMode === 'live' ? 'Mode: Live In' : 'Mode: Hybrid';
+      if (ioGain) ioGain.value = String(this.engine.liveInputGain);
+      if (ioBlend) ioBlend.value = String(this.engine.inputBlend);
+
+      if (state.io.outputDeviceId) {
+        try { await this.engine.setOutputDevice(state.io.outputDeviceId); } catch (e) {}
+      }
+      if (state.io.inputMode === 'live' || state.io.inputMode === 'hybrid') {
+        try { await this.engine.connectLiveInput(state.io.inputDeviceId || ''); } catch (e) {}
+      } else {
+        await this.engine.disconnectLiveInput();
+      }
+      this.engine.inputMode = state.io.inputMode || 'sample';
+      this.engine._updateInputBlend();
+    }
+
+    this._restoringState = false;
+  }
+
+  _scheduleAutoSave() {
+    if (this._restoringState) return;
+    const snap = this._captureState();
+    if (this.activeCompareSlot === 'A') this.slotAState = JSON.parse(JSON.stringify(snap));
+    if (this.activeCompareSlot === 'B') this.slotBState = JSON.parse(JSON.stringify(snap));
+    clearTimeout(this._autoSaveTimer);
+    this._autoSaveTimer = setTimeout(() => {
+      localStorage.setItem(this.sessionStorageKey, JSON.stringify(snap));
+    }, 120);
+  }
+
+  async _restoreLastSession() {
+    try {
+      const raw = localStorage.getItem(this.sessionStorageKey);
+      if (!raw) return;
+      const state = JSON.parse(raw);
+      await this._applyState(state);
+    } catch (err) {
+      console.warn('Failed to restore session', err);
+    }
+  }
+
+  _refreshPresetList() {
+    const select = document.getElementById('presetSelect');
+    const lib = this._loadPresetLibrary();
+    const names = Object.keys(lib).sort((a,b) => a.localeCompare(b));
+    select.innerHTML = names.length ? '' : '<option value="">— No Presets —</option>';
+    for (const name of names) {
+      const opt = document.createElement('option');
+      opt.value = name;
+      opt.textContent = name;
+      select.appendChild(opt);
+    }
+    if (this.activePresetName && lib[this.activePresetName]) select.value = this.activePresetName;
+  }
+
+  _captureCompareSlots() {
+    const snap = this._captureState();
+    this.slotAState = JSON.parse(JSON.stringify(snap));
+    this.slotBState = JSON.parse(JSON.stringify(snap));
+    this._setActiveAB('A');
+  }
+
+  _setActiveAB(slot) {
+    this.activeCompareSlot = slot;
+    document.getElementById('presetABtn').classList.toggle('active-ab', slot === 'A');
+    document.getElementById('presetBBtn').classList.toggle('active-ab', slot === 'B');
+  }
+
+  _bindPresetUI() {
+    const nameInput = document.getElementById('presetNameInput');
+    const select = document.getElementById('presetSelect');
+
+    document.getElementById('presetSaveBtn').addEventListener('click', () => {
+      const name = (nameInput.value || '').trim() || this.activePresetName || this._defaultPresetName();
+      const lib = this._loadPresetLibrary();
+      lib[name] = this._captureState();
+      this._savePresetLibrary(lib);
+      this.activePresetName = name;
+      nameInput.value = name;
+      this._refreshPresetList();
+      this._scheduleAutoSave();
+    });
+
+    document.getElementById('presetDeleteBtn').addEventListener('click', () => {
+      const name = select.value || this.activePresetName;
+      if (!name) return;
+      const lib = this._loadPresetLibrary();
+      delete lib[name];
+      this._savePresetLibrary(lib);
+      if (this.activePresetName === name) this.activePresetName = '';
+      this._refreshPresetList();
+    });
+
+    document.getElementById('presetLoadBtn').addEventListener('click', async () => {
+      const name = select.value;
+      if (!name) return;
+      const lib = this._loadPresetLibrary();
+      if (!lib[name]) return;
+      this.activePresetName = name;
+      nameInput.value = name;
+      await this._applyState(lib[name]);
+      this._scheduleAutoSave();
+    });
+
+    select.addEventListener('change', () => {
+      nameInput.value = select.value || '';
+    });
+
+    document.getElementById('presetExportBtn').addEventListener('click', () => {
+      const payload = {
+        schemaVersion: this.schemaVersion,
+        exportedAt: new Date().toISOString(),
+        presets: this._loadPresetLibrary()
+      };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `mf104m-presets-${Date.now()}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    document.getElementById('presetImportBtn').addEventListener('click', () => {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'application/json,.json';
+      input.onchange = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const text = await file.text();
+        const parsed = JSON.parse(text);
+        const incoming = parsed.presets || parsed;
+        const lib = this._loadPresetLibrary();
+        for (const [name, state] of Object.entries(incoming)) {
+          lib[name] = this._migrateState(state);
+        }
+        this._savePresetLibrary(lib);
+        this._refreshPresetList();
+      };
+      input.click();
+    });
+
+    document.getElementById('presetABtn').addEventListener('click', async () => {
+      if (this.slotAState) await this._applyState(this.slotAState);
+      this._setActiveAB('A');
+    });
+
+    document.getElementById('presetBBtn').addEventListener('click', async () => {
+      if (this.slotBState) await this._applyState(this.slotBState);
+      this._setActiveAB('B');
+    });
+
+    document.getElementById('presetCopyAToBBtn').addEventListener('click', () => {
+      this.slotBState = JSON.parse(JSON.stringify(this.slotAState || this._captureState()));
+    });
+
+    document.getElementById('presetCopyBToABtn').addEventListener('click', () => {
+      this.slotAState = JSON.parse(JSON.stringify(this.slotBState || this._captureState()));
+    });
+  }
+
+  // ── LEVEL METER UI ──
+  _startMeterUI() {
+    const segs = document.querySelectorAll('#levelMeter .meter-seg');
+    const levelLed = document.getElementById('levelLed');
+
+    const update = () => {
+      const {avg, peak} = this.engine.getMeterLevel();
+      const level = Math.floor(avg * 8);
+      const total = segs.length;
+
+      segs.forEach(seg => {
+        const i = parseInt(seg.dataset.i);
+        seg.className = 'meter-seg';
+        if (i < level) {
+          if (i >= 6) seg.classList.add('r');
+          else if (i >= 4) seg.classList.add('a');
+          else seg.classList.add('g');
+        }
+      });
+
+      // Level LED
+      if (peak > 0.9) {
+        levelLed.className = 'led red';
+      } else if (peak > 0.6) {
+        levelLed.className = 'led amber';
+      } else if (peak > 0.05) {
+        levelLed.className = 'led green';
+      } else {
+        levelLed.className = 'led dim-green';
+      }
+
+      requestAnimationFrame(update);
+    };
+    update();
+  }
+
+  // ── LED ANIMATIONS ──
+  _startLedAnimations() {
+    const timeLed = document.getElementById('timeLed');
+    const lfoLed = document.getElementById('lfoLed');
+
+    // Time LED flashes with delay time
+    const flashTime = () => {
+      if (this.bypassState !== 'off') {
+        const ms = this.engine._getDelayTimeMs();
+        timeLed.className = 'led red';
+        setTimeout(() => { timeLed.className = 'led dim-red'; }, Math.min(ms * 0.3, 100));
+        setTimeout(flashTime, ms);
+      } else {
+        timeLed.className = 'led dim-red';
+        setTimeout(flashTime, 500);
+      }
+    };
+    flashTime();
+
+    // LFO LED flashes with LFO rate
+    const flashLFO = () => {
+      if (this.engine.params.lfoAmount > 0 && this.bypassState !== 'off') {
+        const periodMs = 1000 / this.engine.params.lfoRate;
+        lfoLed.className = 'led red';
+        setTimeout(() => { lfoLed.className = 'led dim-red'; }, Math.min(periodMs * 0.3, 100));
+        setTimeout(flashLFO, periodMs);
+      } else {
+        lfoLed.className = 'led dim-red';
+        setTimeout(flashLFO, 200);
+      }
+    };
+    flashLFO();
+  }
+}
+
+
+// ═══════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', () => {
+  const ui = new PedalUI();
+
+  // Init audio on first user interaction (browser policy)
+  const initOnce = async () => {
+    await ui.init();
+    document.removeEventListener('click', initOnce);
+    document.removeEventListener('touchstart', initOnce);
+  };
+  document.addEventListener('click', initOnce);
+  document.addEventListener('touchstart', initOnce);
+});
+</script>
+
+</body>
+</html>
